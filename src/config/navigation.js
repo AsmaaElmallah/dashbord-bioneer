@@ -1,0 +1,52 @@
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  BookOpen,
+  ScrollText,
+  Calculator,
+  Eye,
+  Heart,
+  Library,
+  Dumbbell,
+  ClipboardCheck,
+  MessageCircle,
+  Target,
+  FileText,
+  FolderOpen,
+  Bell,
+  BarChart3,
+  Settings,
+  Palette,
+} from 'lucide-react';
+
+export const navSections = [
+  { path: '/', label: 'نظرة عامة', icon: LayoutDashboard },
+  { path: '/users', label: 'المستخدمون والأطفال', icon: Users },
+  { path: '/subscriptions', label: 'الاشتراكات', icon: CreditCard },
+  { path: '/curriculum', label: 'المناهج', icon: BookOpen },
+  { path: '/quran', label: 'القرآن', icon: ScrollText },
+  { path: '/math', label: 'الحساب النقطي', icon: Calculator },
+  { path: '/visual', label: 'التحفيز البصري', icon: Eye },
+  { path: '/emotional', label: 'الذكاء العاطفي', icon: Heart },
+  { path: '/library', label: 'المكتبة والوسائط', icon: Library },
+  { path: '/activities', label: 'الأنشطة والرياضة', icon: Dumbbell },
+  { path: '/assessments', label: 'التقييمات', icon: ClipboardCheck },
+  { path: '/community', label: 'المجتمع والدعم', icon: MessageCircle },
+  { path: '/targeting', label: 'توجيه المحتوى', icon: Target },
+  { path: '/cms', label: 'محتوى ثابت', icon: FileText },
+  { path: '/assets', label: 'الملفات والأصول', icon: FolderOpen },
+  { path: '/notifications', label: 'الإشعارات', icon: Bell },
+  { path: '/reports', label: 'التقارير', icon: BarChart3 },
+  { path: '/settings', label: 'الإعدادات', icon: Settings },
+  { path: '/design-system', label: 'نظام التصميم', icon: Palette },
+];
+
+/** أقسام الشريط السفلي على الموبايل (Prompt 23) */
+export const mobileNavSections = [
+  { path: '/', label: 'نظرة', icon: LayoutDashboard },
+  { path: '/users', label: 'المستخدمون', icon: Users },
+  { path: '/curriculum', label: 'المناهج', icon: BookOpen },
+  { path: '/targeting', label: 'التوجيه', icon: Target },
+  { path: '/community', label: 'المجتمع', icon: MessageCircle },
+];

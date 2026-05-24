@@ -1,0 +1,123 @@
+/* Prompt 24 — توحيد polish عام */
+
+:root {
+  --space-section: 20px;
+  --space-card: 20px;
+  --title-page: 1.5rem;
+  --title-section: 1.1rem;
+}
+
+.page-header h1 {
+  font-size: var(--title-page);
+}
+
+.section-header h2,
+.section-header h3 {
+  font-size: var(--title-section);
+}
+
+.admin-card,
+.stat-card {
+  padding: var(--space-card);
+}
+
+.admin-table th,
+.admin-table td {
+  vertical-align: middle;
+}
+
+.admin-table td .text-break,
+.text-break {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.cell-path {
+  display: block;
+  max-width: 220px;
+  font-size: 0.68rem;
+  word-break: break-all;
+}
+
+.empty-state {
+  padding: 40px 24px;
+  color: var(--on-surface-variant);
+}
+
+.empty-state__icon {
+  opacity: 0.45;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.empty-state__title {
+  margin: 8px 0 4px;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--on-surface);
+}
+
+.empty-state__desc {
+  margin: 0 auto;
+  font-size: 0.88rem;
+  max-width: 360px;
+  line-height: 1.55;
+}
+
+.empty-state--compact {
+  padding: 28px 16px;
+}
+
+.ticket-board__empty {
+  margin: 0;
+  padding: 12px;
+  font-size: 0.78rem;
+  color: var(--on-surface-variant);
+  text-align: center;
+  border: 1px dashed rgba(196, 181, 253, 0.45);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.mock-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 24px;
+  color: var(--on-surface-variant);
+  background: var(--surface-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(196, 181, 253, 0.25);
+}
+
+.mock-loading__icon {
+  animation: spin 1s linear infinite;
+  color: var(--primary);
+}
+
+.mock-loading__label {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ui-only-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--on-surface-variant);
+}
+
+.snackbar {
+  max-width: min(420px, calc(100vw - 32px));
+  text-align: center;
+  line-height: 1.45;
+}
