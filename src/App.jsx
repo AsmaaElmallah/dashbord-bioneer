@@ -21,6 +21,22 @@ import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SearchPage } from './pages/SearchPage';
 import { DesignSystemPage } from './pages/DesignSystemPage';
+import { ContentStudioPage } from './pages/ContentStudioPage';
+import { ContentWizardPage } from './pages/ContentWizardPage';
+import { ArticleEditorPage } from './pages/ArticleEditorPage';
+import { LessonBuilderPage } from './pages/LessonBuilderPage';
+import { SlideEditorPage } from './pages/SlideEditorPage';
+import { QuranSessionEditorPage } from './pages/QuranSessionEditorPage';
+import { LibraryContentEditorPage } from './pages/LibraryContentEditorPage';
+import { ActivityExerciseEditorPage } from './pages/ActivityExerciseEditorPage';
+import { AssessmentBuilderPage } from './pages/AssessmentBuilderPage';
+import { NotificationContentEditorPage } from './pages/NotificationContentEditorPage';
+import { ContentReviewPage } from './pages/ContentReviewPage';
+import { AppContentPreviewPage } from './pages/AppContentPreviewPage';
+import { BulkImportPage } from './pages/BulkImportPage';
+import { ContentInventoryPage } from './pages/ContentInventoryPage';
+import { ImageContentEditorPage } from './pages/ImageContentEditorPage';
+import { AudioContentEditorPage } from './pages/AudioContentEditorPage';
 
 export default function App() {
   return (
@@ -29,6 +45,22 @@ export default function App() {
         <Routes>
           <Route path="/" element={<AdminShell />}>
             <Route index element={<OverviewPage />} />
+            <Route path="content-studio" element={<ContentStudioPage />} />
+            <Route path="content-studio/new" element={<ContentWizardPage />} />
+            <Route path="content-studio/article" element={<ArticleEditorPage />} />
+            <Route path="content-studio/lesson" element={<LessonBuilderPage />} />
+            <Route path="content-studio/slide" element={<SlideEditorPage />} />
+            <Route path="content-studio/image" element={<ImageContentEditorPage />} />
+            <Route path="content-studio/audio" element={<AudioContentEditorPage />} />
+            <Route path="content-studio/quran-session" element={<QuranSessionEditorPage />} />
+            <Route path="content-studio/library" element={<LibraryContentEditorPage />} />
+            <Route path="content-studio/activity-exercise" element={<ActivityExerciseEditorPage />} />
+            <Route path="content-studio/assessment" element={<AssessmentBuilderPage />} />
+            <Route path="content-studio/notification" element={<NotificationContentEditorPage />} />
+            <Route path="content-studio/app-preview" element={<AppContentPreviewPage />} />
+            <Route path="content-studio/bulk-import" element={<BulkImportPage />} />
+            <Route path="content-inventory" element={<ContentInventoryPage />} />
+            <Route path="content-review" element={<ContentReviewPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="subscriptions" element={<SubscriptionsPage />} />
             <Route path="curriculum" element={<CurriculumPage />} />

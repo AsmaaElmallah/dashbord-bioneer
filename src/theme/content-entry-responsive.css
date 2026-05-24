@@ -1,0 +1,230 @@
+/* Prompt 50 — Content Entry responsive & polish */
+
+.content-entry-page,
+.content-wizard-layout,
+.article-editor__layout,
+.library-content-editor__layout,
+.image-content-editor__layout,
+.audio-content-editor__layout,
+.lesson-builder__layout,
+.slide-editor__layout,
+.content-review-page__layout,
+.content-inventory-page__layout,
+.app-preview-page__layout,
+.bulk-import-panel__main,
+.placement-picker__layout {
+  min-width: 0;
+}
+
+.content-entry-text-clamp {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Desktop: form + preview side by side (grid-2 default) */
+.content-wizard-layout {
+  align-items: start;
+}
+
+.content-wizard-layout > .admin-card:first-child {
+  min-width: 0;
+}
+
+/* Tablet: flexible stacked rows */
+@media (max-width: 900px) {
+  .content-wizard-layout,
+  .content-review-page__layout,
+  .content-inventory-page__layout,
+  .app-preview-page__layout,
+  .article-editor__layout,
+  .library-content-editor__layout,
+  .image-content-editor__layout,
+  .audio-content-editor__layout,
+  .lesson-builder__layout,
+  .slide-editor__layout,
+  .quran-session-editor__layout,
+  .activity-exercise-editor__layout,
+  .assessment-builder__layout,
+  .notification-content-editor__layout,
+  .bulk-import-panel__main {
+    grid-template-columns: 1fr;
+  }
+
+  .content-wizard-preview,
+  .content-review-page__detail,
+  .content-inventory-page__detail,
+  .article-editor__preview-wrap,
+  .library-content-editor__preview-wrap,
+  .image-content-editor__preview-wrap,
+  .audio-content-editor__preview-wrap {
+    position: static;
+    order: 2;
+  }
+
+  .content-wizard-layout > .admin-card:first-child,
+  .content-review-page__layout > .admin-card:first-child,
+  .content-inventory-page__layout > .admin-card:first-child {
+    order: 1;
+  }
+
+  .placement-picker__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .placement-picker__tree-wrap {
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .review-board {
+    flex-direction: column;
+    max-height: none;
+  }
+
+  .review-board__column {
+    min-width: 0;
+    flex: 1 1 auto;
+    max-height: none;
+  }
+
+  .app-preview-page__phone-wrap {
+    order: -1;
+  }
+}
+
+/* Mobile */
+@media (max-width: 720px) {
+  .content-studio-new-link {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .content-entry-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .content-entry-actions .mock-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .wizard-steps__label-full {
+    display: none;
+  }
+
+  .wizard-steps__label-short {
+    display: inline;
+  }
+
+  .wizard-steps__item {
+    padding: 8px 10px;
+    font-size: 0.72rem;
+  }
+
+  .wizard-panel .cms-field input,
+  .wizard-panel .cms-field select,
+  .wizard-panel .cms-field textarea,
+  .age-targeting-panel .cms-field input,
+  .age-targeting-panel .cms-field select,
+  .media-upload-panel .cms-field input,
+  .media-upload-panel .cms-field select,
+  .media-upload-panel .cms-field textarea,
+  .placement-picker__search-wrap input {
+    width: 100%;
+  }
+
+  .chip-grid {
+    gap: 6px;
+  }
+
+  .chip-btn {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 0;
+    font-size: 0.78rem;
+    padding: 8px 10px;
+    text-align: center;
+  }
+
+  .media-dropzone__file-name,
+  .media-linked-list__item span,
+  .placement-tree__label,
+  .content-wizard-summary dd,
+  .content-inventory-detail__summary,
+  .admin-table--cards td {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .content-inventory-bulk,
+  .content-inventory-toggles,
+  .bulk-import-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .content-inventory-bulk .mock-btn,
+  .bulk-import-actions .mock-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .app-preview-phone__bezel {
+    max-width: 100%;
+  }
+
+  .app-preview-phone__tab {
+    font-size: 0.58rem;
+    padding: 5px 3px;
+  }
+
+  .content-validation-checklist li {
+    font-size: 0.78rem;
+  }
+
+  .mock-btn {
+    min-height: 40px;
+  }
+}
+
+@media (min-width: 721px) {
+  .wizard-steps__label-short {
+    display: none;
+  }
+
+  .wizard-steps__label-full {
+    display: inline;
+  }
+}
+
+/* Unified content-entry spacing */
+.content-entry-section-gap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.content-entry-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Table → cards (content entry tables) */
+@media (max-width: 720px) {
+  .admin-table-wrap:has(.admin-table--cards) {
+    overflow: visible;
+    border: none;
+    background: transparent;
+  }
+
+  .content-inventory-table.admin-table--cards td[data-label='']::before {
+    display: none;
+  }
+
+  .content-inventory-table.admin-table--cards td:first-child {
+    justify-content: flex-start;
+  }
+}

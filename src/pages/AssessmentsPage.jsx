@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { InfoBanner } from '../components/InfoBanner';
@@ -33,6 +34,14 @@ export function AssessmentsPage() {
   return (
     <div className="page-stack">
       <PageHeader title="التقييمات والاختبارات" />
+
+      <AdminCard>
+        <p style={{ margin: 0, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Link to="/content-studio/assessment" className="mock-btn mock-btn--primary">
+            إضافة اختبار / سؤال (Content Studio)
+          </Link>
+        </p>
+      </AdminCard>
 
       <InfoBanner tone="warning">
         التقييمات ليست تشخيصاً طبياً. لا حفظ إجابات ولا تحليل طبي حقيقي — UI فقط.

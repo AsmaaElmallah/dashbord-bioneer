@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { InfoBanner } from '../components/InfoBanner';
@@ -46,6 +47,14 @@ export function NotificationsPage() {
   return (
     <div className="page-stack">
       <PageHeader title="الإشعارات" />
+
+      <AdminCard>
+        <p style={{ margin: 0, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Link to="/content-studio/notification" className="mock-btn mock-btn--primary">
+            محرر الإشعارات (Content Studio)
+          </Link>
+        </p>
+      </AdminCard>
 
       <InfoBanner tone="info">
         التطبيق الأصلي لا يحتوي نظام push حقيقي — هذه الصفحة UI للتخطيط فقط (لا Firebase / لا

@@ -2349,6 +2349,177 @@ export function buildGlobalSearchResults(query, limit = 10) {
   return results;
 }
 
+export const contentStudioStats = [
+  { label: 'مسودات', value: '24', tone: 'muted' },
+  { label: 'منشور', value: '156', tone: 'success' },
+  { label: 'يحتاج مراجعة', value: '18', tone: 'warning' },
+  { label: 'ناقص ملفات', value: '31', tone: 'error' },
+];
+
+/** icon names map to lucide in ContentStudioPage */
+export const contentStudioTypes = [
+  {
+    id: 'article',
+    label: 'مقال / نص ثابت',
+    description: 'نص ثابت: المنهج، ثقافة، إرشادات، قوانين، اشتراك — محرر مخصص.',
+    needsFiles: false,
+    filesHint: 'محرر نصوص — بدون ملفات إلزامية',
+    icon: 'FileText',
+    editorPath: '/content-studio/article',
+  },
+  {
+    id: 'lesson',
+    label: 'درس',
+    description: 'درس في مسار الحساب / البصري / العاطفي — منشئ شرائح.',
+    needsFiles: true,
+    filesHint: 'شرائح + صوت — منشئ LessonBuilder',
+    icon: 'BookOpen',
+    editorPath: '/content-studio/lesson',
+  },
+  {
+    id: 'slide',
+    label: 'شريحة',
+    description: 'شريحة واحدة PNG + m4a — محرر SlideEditor.',
+    needsFiles: true,
+    filesHint: 'SlideEditor — صورة + صوت',
+    icon: 'Layers',
+    editorPath: '/content-studio/slide',
+  },
+  {
+    id: 'image',
+    label: 'صورة',
+    description: 'PNG/JPG — غلاف، شريحة، CMS، أصول manifest.',
+    needsFiles: true,
+    filesHint: 'ImageContentEditor — alt + asset path',
+    icon: 'Image',
+    editorPath: '/content-studio/image',
+  },
+  {
+    id: 'video',
+    label: 'فيديو',
+    description: 'فيديو YouTube للمكتبة أو الأنشطة.',
+    needsFiles: true,
+    filesHint: 'videoId — LibraryContentEditor',
+    icon: 'Video',
+    editorPath: '/content-studio/library',
+  },
+  {
+    id: 'playlist',
+    label: 'Playlist',
+    description: 'قائمة YouTube للمكتبة — تهويدات أو مجموعات.',
+    needsFiles: true,
+    filesHint: 'playlistId — LibraryContentEditor',
+    icon: 'ListVideo',
+    editorPath: '/content-studio/library?type=playlist',
+  },
+  {
+    id: 'audio',
+    label: 'صوت',
+    description: 'ملف صوتي لجلسة قرآن أو شريحة.',
+    needsFiles: true,
+    filesHint: 'AudioContentEditor — mp3 / m4a',
+    icon: 'Volume2',
+    editorPath: '/content-studio/audio',
+  },
+  {
+    id: 'activity',
+    label: 'نشاط',
+    description: 'نشطة تفاعلية حسب العمر.',
+    needsFiles: true,
+    filesHint: 'ActivityExerciseEditor — YouTube',
+    icon: 'Sparkles',
+    editorPath: '/content-studio/activity-exercise?type=activity',
+  },
+  {
+    id: 'exercise',
+    label: 'تمرين',
+    description: 'تمرين رياضة/حركة من tamareen.',
+    needsFiles: true,
+    filesHint: 'ActivityExerciseEditor — YouTube',
+    icon: 'Dumbbell',
+    editorPath: '/content-studio/activity-exercise?type=exercise',
+  },
+  {
+    id: 'test',
+    label: 'اختبار',
+    description: 'اختبار مهارات أو ميول كامل.',
+    needsFiles: false,
+    filesHint: 'AssessmentBuilder — أسئلة',
+    icon: 'ClipboardList',
+    editorPath: '/content-studio/assessment',
+  },
+  {
+    id: 'question',
+    label: 'سؤال',
+    description: 'سؤال واحد داخل اختبار.',
+    needsFiles: false,
+    filesHint: 'QuestionEditor — داخل AssessmentBuilder',
+    icon: 'HelpCircle',
+    editorPath: '/content-studio/assessment?mode=question',
+  },
+  {
+    id: 'notification',
+    label: 'إشعار',
+    description: 'رسالة push مجدولة للأمهات.',
+    needsFiles: false,
+    filesHint: 'NotificationContentEditor',
+    icon: 'Bell',
+    editorPath: '/content-studio/notification',
+  },
+  {
+    id: 'quran_session',
+    label: 'جلسة قرآن',
+    description: 'جلسة ضمن ختمة — نصف حزب.',
+    needsFiles: true,
+    filesHint: 'mp3 + نطاق آيات',
+    icon: 'ScrollText',
+    editorPath: '/content-studio/quran-session',
+  },
+];
+
+export const contentWizardLanguages = [
+  { id: 'ar', label: 'العربية' },
+  { id: 'en', label: 'English' },
+];
+
+export const contentWizardPlans = [
+  'بدون اشتراك',
+  'شهرية',
+  'برونزية',
+  'فضية',
+  'ذهبية',
+];
+
+export const contentWizardDetailedPlacements = [
+  'الرئيسية → بطاقة محتوى مميز',
+  'المكتبة → فيديوهات التغذية',
+  'الرياضة → tamareen / MediaAgeHub',
+  'القرآن → جلسة اليوم',
+  'الحساب → مسار الدرس',
+  'الأنشطة → حسب العمر',
+  'onboarding → شاشة ترحيب',
+];
+
+/** BabyAgeRange — onboarding في Flutter */
+export const onboardingAgeGroups = [
+  { id: 'age0to3', label: '0-3 شهور', minMonths: 0, maxMonths: 3 },
+  { id: 'age3to6', label: '3-6 شهور', minMonths: 3, maxMonths: 6 },
+  { id: 'age6to12', label: '6-12 شهر', minMonths: 6, maxMonths: 12 },
+  { id: 'age1to1_5', label: '1-1.5 سنة', minMonths: 12, maxMonths: 18 },
+  { id: 'age1_5to2', label: '1.5-2 سنة', minMonths: 18, maxMonths: 24 },
+];
+
+/** activityAgeGroups / exerciseAgeGroups — tamareen & MediaAgeHub */
+export const mediaAgeGroups = [
+  { id: 'age_0_3', label: '0-3 أشهر', minMonths: 0, maxMonths: 3 },
+  { id: 'age_4_6', label: '4-6 أشهر', minMonths: 4, maxMonths: 6 },
+  { id: 'age_6_9', label: '6-9 أشهر', minMonths: 6, maxMonths: 9 },
+  { id: 'age_9_12', label: '9-12 شهر', minMonths: 9, maxMonths: 12 },
+  { id: 'age_12_18', label: '12-18 شهر', minMonths: 12, maxMonths: 18 },
+  { id: 'age_18_24', label: '18-24 شهر', minMonths: 18, maxMonths: 24 },
+  { id: 'age_9_36', label: '9-36 شهر', minMonths: 9, maxMonths: 36 },
+];
+
 export const alerts = [
   'فيديوهات onboarding غير مضافة في assets',
   'صوت القرآن: manifest موجود لكن ملفات mp3 غير مرفوعة',

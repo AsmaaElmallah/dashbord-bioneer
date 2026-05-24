@@ -18,10 +18,16 @@ import {
   BarChart3,
   Settings,
   Palette,
+  Sparkles,
+  ListChecks,
+  Archive,
 } from 'lucide-react';
 
 export const navSections = [
   { path: '/', label: 'نظرة عامة', icon: LayoutDashboard },
+  { path: '/content-studio', label: 'استوديو المحتوى', icon: Sparkles },
+  { path: '/content-review', label: 'مراجعة المحتوى', icon: ListChecks },
+  { path: '/content-inventory', label: 'فهرس المحتوى', icon: Archive },
   { path: '/users', label: 'المستخدمون والأطفال', icon: Users },
   { path: '/subscriptions', label: 'الاشتراكات', icon: CreditCard },
   { path: '/curriculum', label: 'المناهج', icon: BookOpen },

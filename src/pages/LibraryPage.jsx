@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Link2 } from 'lucide-react';
 import { ActiveFilters } from '../components/ActiveFilters';
 import { AdminCard } from '../components/AdminCard';
@@ -94,6 +95,14 @@ export function LibraryPage() {
   return (
     <div className="page-stack">
       <PageHeader title="المكتبة والوسائط" />
+
+      <AdminCard>
+        <p style={{ margin: 0, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Link to="/content-studio/library" className="mock-btn mock-btn--primary">
+            إضافة محتوى مكتبة (Content Studio)
+          </Link>
+        </p>
+      </AdminCard>
 
       <InfoBanner tone="warning">
         لا WebView ولا تحقق YouTube فعلي — إدارة روابط mock من{' '}

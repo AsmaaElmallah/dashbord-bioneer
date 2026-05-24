@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { EmptyState } from '../components/EmptyState';
@@ -61,6 +62,14 @@ export function ActivitiesPage() {
   return (
     <div className="page-stack">
       <PageHeader title="الأنشطة والرياضة" />
+
+      <AdminCard>
+        <p style={{ margin: 0, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Link to="/content-studio/activity-exercise" className="mock-btn mock-btn--primary">
+            إضافة نشاط / تمرين (Content Studio)
+          </Link>
+        </p>
+      </AdminCard>
 
       <InfoBanner tone="info">
         UI فقط — بيانات من <code>activities_catalog.dart</code> و{' '}

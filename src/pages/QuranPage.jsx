@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { InfoBanner } from '../components/InfoBanner';
@@ -26,6 +27,14 @@ export function QuranPage() {
   return (
     <div className="page-stack">
       <PageHeader title="إدارة القرآن الكريم" />
+
+      <AdminCard>
+        <p style={{ margin: 0, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Link to="/content-studio/quran-session" className="mock-btn mock-btn--primary">
+            محرر جلسة قرآن (Content Studio)
+          </Link>
+        </p>
+      </AdminCard>
 
       <div className="grid-4">
         <StatCard label="ختمات مستهدفة" value={String(quranOverview.targetKhatmah)} />
