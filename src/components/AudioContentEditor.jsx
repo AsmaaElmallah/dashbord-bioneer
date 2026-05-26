@@ -142,10 +142,6 @@ export function AudioContentEditor({ value, onChange }) {
 
   return (
     <div className="audio-content-editor">
-      <InfoBanner tone="info">
-        AudioContentEditor — رفع mock فقط. متوافق مع شرائح m4a وجلسات mp3 · <code>/assets</code>.
-      </InfoBanner>
-
       <div className="grid-2 audio-content-editor__layout">
         <div className="audio-content-editor__form">
           <AdminCard>

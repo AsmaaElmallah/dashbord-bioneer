@@ -23,11 +23,6 @@ export function NotificationContentEditorPage() {
 
       <PageHeader title="محرر الإشعارات" extraBadges={['إشعار']} />
 
-      <InfoBanner tone="warning">
-        UI فقط — لا Firebase ولا إرسال فعلي. متوافق مع{' '}
-        <Link to="/notifications">صفحة الإشعارات</Link>.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="مثال سريع" />
         <button

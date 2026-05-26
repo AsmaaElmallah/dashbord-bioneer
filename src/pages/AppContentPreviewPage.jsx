@@ -27,10 +27,6 @@ export function AppContentPreviewPage() {
 
       <PageHeader title="معاينة شاشة التطبيق" extraBadges={['AppContentPreview', 'Flutter mock']} />
 
-      <InfoBanner tone="warning">
-        UI فقط — إطار موبايل mock مع تبويبات (الرئيسية · القسم · التفاصيل). لا Flutter ولا iframe.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="أمثلة سريعة" />
         <p style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '0 0 12px' }}>

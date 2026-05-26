@@ -66,7 +66,7 @@ export function GlobalSearch() {
             ))
           )}
           <button type="button" className="global-search__footer" onClick={goSearchPage}>
-            عرض كل النتائج (UI فقط)
+            عرض كل النتائج
           </button>
         </div>
       )}

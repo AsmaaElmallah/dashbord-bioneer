@@ -139,10 +139,6 @@ export function ImageContentEditor({ value, onChange }) {
 
   return (
     <div className="image-content-editor">
-      <InfoBanner tone="info">
-        ImageContentEditor — رفع mock فقط. للربط بشرائح/أصول — متوافق مع <code>/assets</code>.
-      </InfoBanner>
-
       <div className="grid-2 image-content-editor__layout">
         <div className="image-content-editor__form">
           <AdminCard>

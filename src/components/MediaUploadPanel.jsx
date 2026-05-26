@@ -135,11 +135,6 @@ export function MediaUploadPanel({ value, onChange, contentType }) {
   return (
     <div className="media-upload-panel">
       <SectionHeader title="الوسائط والملفات" />
-      <InfoBanner tone="info">
-        رفع وهمي — اختيار الملف يعرض الاسم فقط في الواجهة. <strong>لا upload</strong> ولا حفظ بعد
-        refresh.
-      </InfoBanner>
-
       {!media.coverImage &&
         !media.audioFile &&
         !media.videoFile &&

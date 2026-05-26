@@ -127,9 +127,6 @@ export function SlideEditor({ value, onChange }) {
 
   return (
     <div className="slide-editor">
-      <InfoBanner tone="info">
-        SlideEditor UI فقط — لا manifest، لا تشغيل صوت، لا حفظ بعد refresh.
-      </InfoBanner>
 
       <div className="grid-2 slide-editor__layout">
         <div className="slide-editor__form">

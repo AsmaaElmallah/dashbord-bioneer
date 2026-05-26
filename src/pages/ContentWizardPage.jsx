@@ -220,11 +220,6 @@ export function ContentWizardPage() {
 
       <PageHeader title="إنشاء محتوى جديد" extraBadges={['معالج موحّد']} />
 
-      <InfoBanner tone="warning">
-        معالج شكلي <strong>UI فقط</strong> — البيانات في <code>useState</code> محلي وتُفقد بعد
-        refresh. لا Backend ولا API.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="مثال سريع" />
         <div className="content-entry-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

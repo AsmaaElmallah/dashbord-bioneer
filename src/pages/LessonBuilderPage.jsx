@@ -20,10 +20,6 @@ export function LessonBuilderPage() {
 
       <PageHeader title="منشئ الدروس — المناهج" extraBadges={['درس']} />
 
-      <InfoBanner tone="warning">
-        UI فقط — مسارات الحساب / التحفيز البصري / الذكاء العاطفي. لا manifest ولا assets فعلية.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="مثال سريع" />
         <button

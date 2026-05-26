@@ -1,4 +1,4 @@
-export function PageHeader({ title, badge = 'UI فقط', extraBadges = [] }) {
+export function PageHeader({ title, badge = null, extraBadges = [] }) {
   return (
     <div className="page-header">
       <h1>{title}</h1>

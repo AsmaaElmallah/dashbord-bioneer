@@ -39,11 +39,6 @@ export function AssessmentBuilderPage() {
         extraBadges={[mode === 'question' ? 'سؤال' : 'اختبار']}
       />
 
-      <InfoBanner tone="warning">
-        UI فقط — لا حفظ إجابات ولا تحليل طبي. متوافق مع{' '}
-        <Link to="/assessments">صفحة التقييمات</Link>.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="مثال سريع" />
         <button type="button" className="mock-btn mock-btn--outline" onClick={loadExample}>

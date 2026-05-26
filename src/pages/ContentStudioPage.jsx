@@ -102,10 +102,6 @@ export function ContentStudioPage() {
     <div className="page-stack content-entry-page">
       <PageHeader title="استوديو المحتوى" extraBadges={['إضافة محتوى']} />
 
-      <InfoBanner tone="warning">
-        هذه واجهة إدخال محتوى <strong>UI فقط</strong> — لا يتم حفظ شيء فعلياً بعد refresh.
-      </InfoBanner>
-
       <AdminCard>
         <p style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: 0 }}>
           <Link to="/content-studio/new" className="mock-btn mock-btn--primary content-studio-new-link">
@@ -217,7 +213,7 @@ export function ContentStudioPage() {
         <AdminCard className="content-studio-image-highlight">
           <SectionHeader title="صورة — غلاف / شريحة / CMS" />
           <p className="text-caption" style={{ marginTop: 0 }}>
-            PNG/JPG mock · alt text · asset path · معاينة في إطار التطبيق.
+            PNG/JPG · نص بديل · مسار الملف · معاينة في إطار التطبيق.
           </p>
           <div style={{ maxWidth: 320 }}>
             <StudioTypeCard type={imageType} to="/content-studio/image" cta="فتح ImageContentEditor" />
@@ -229,7 +225,7 @@ export function ContentStudioPage() {
         <AdminCard className="content-studio-audio-highlight">
           <SectionHeader title="صوت — m4a / mp3" />
           <p className="text-caption" style={{ marginTop: 0 }}>
-            تعليق شرائح · جلسات قرآن · أصوات مكتبة — duration + asset path mock.
+            تعليق شرائح · جلسات قرآن · أصوات مكتبة — المدة ومسار الملف.
           </p>
           <div style={{ maxWidth: 320 }}>
             <StudioTypeCard type={audioType} to="/content-studio/audio" cta="فتح AudioContentEditor" />
@@ -241,7 +237,7 @@ export function ContentStudioPage() {
         <AdminCard className="content-studio-quran-highlight">
           <SectionHeader title="جلسة قرآن — محرر مخصص" />
           <p className="text-caption" style={{ marginTop: 0 }}>
-            120 جلسة/ختمة · خطة يومية · mp3 mock — متوافق مع صفحة /quran.
+            120 جلسة/ختمة · خطة يومية · ملفات mp3 — متوافق مع صفحة القرآن.
           </p>
           <div style={{ maxWidth: 320 }}>
             <StudioTypeCard
@@ -257,7 +253,7 @@ export function ContentStudioPage() {
         <AdminCard className="content-studio-library-highlight">
           <SectionHeader title="المكتبة — فيديو / Playlist YouTube" />
           <p className="text-caption" style={{ marginTop: 0 }}>
-            أصوات الطبيعة · موسيقى هادئة · تهويدات — thumbnail + فحص رابط mock.
+            أصوات الطبيعة · موسيقى هادئة · تهويدات — صورة مصغّرة وفحص الرابط.
           </p>
           <div style={{ maxWidth: 320 }}>
             <StudioTypeCard
@@ -273,7 +269,7 @@ export function ContentStudioPage() {
         <AdminCard className="content-studio-activity-highlight">
           <SectionHeader title="نشاط / تمرين — MediaAgeHub" />
           <p className="text-caption" style={{ marginTop: 0 }}>
-            7 فئات عمرية · YouTube mock · empty state للعناصر الجديدة.
+            7 فئات عمرية · روابط YouTube · إضافة عناصر جديدة.
           </p>
           <div style={{ maxWidth: 320 }}>
             <StudioTypeCard
@@ -289,7 +285,7 @@ export function ContentStudioPage() {
         <AdminCard className="content-studio-assessment-highlight">
           <SectionHeader title="اختبار / سؤال — التقييمات" />
           <p className="text-caption" style={{ marginTop: 0 }}>
-            AssessmentBuilder + QuestionEditor · progress mock · جدول أسئلة محلي.
+            بناء الاختبارات والأسئلة · تقدم الطفل · جدول أسئلة.
           </p>
           <div style={{ maxWidth: 320 }}>
             <StudioTypeCard
@@ -305,7 +301,7 @@ export function ContentStudioPage() {
         <AdminCard className="content-studio-notification-highlight">
           <SectionHeader title="إشعار — push للأمهات" />
           <p className="text-caption" style={{ marginTop: 0 }}>
-            target summary · معاينة جوال · جدولة mock — لا Firebase.
+            الجمهور المستهدف · معاينة جوال · جدولة الإرسال.
           </p>
           <div style={{ maxWidth: 320 }}>
             <StudioTypeCard
@@ -318,7 +314,7 @@ export function ContentStudioPage() {
       )}
 
       <AdminCard className="content-studio-bulk-highlight">
-        <SectionHeader title="استيراد جماعي — mock" />
+        <SectionHeader title="استيراد جماعي" />
         <p className="text-caption" style={{ marginTop: 0 }}>
           PPTX · صور/صوت · CSV أسئلة · CSV YouTube · Quran mp3 · manifest — dropzone + mapping + جدول تحقق.
         </p>

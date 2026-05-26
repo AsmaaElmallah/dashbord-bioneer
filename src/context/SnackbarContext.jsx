@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useState } from 'react';
+import { cleanToast } from '../utils/adminMessages';
 
 const SnackbarContext = createContext(null);
 
 export function SnackbarProvider({ children }) {
   const [message, setMessage] = useState(null);
 
-  const showMock = useCallback((text = 'UI فقط — لا يوجد Backend') => {
-    setMessage(text);
+  const showMock = useCallback((text = 'تم') => {
+    setMessage(cleanToast(text));
     window.clearTimeout(showMock._t);
     showMock._t = window.setTimeout(() => setMessage(null), 2800);
   }, []);

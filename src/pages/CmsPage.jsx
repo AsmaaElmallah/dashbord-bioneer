@@ -47,11 +47,6 @@ export function CmsPage() {
     <div className="page-stack">
       <PageHeader title="إدارة المحتوى الثابت (CMS)" />
 
-      <InfoBanner tone="info">
-        UI فقط — لا rich text editor ولا حفظ. المحتوى من curriculum_about_content و
-        how_to_teach_content و parenting_articles و family_rules_screen.
-      </InfoBanner>
-
       <div className="cms-layout">
         <aside className="cms-sidebar">
           {cmsSections.map((s) => (

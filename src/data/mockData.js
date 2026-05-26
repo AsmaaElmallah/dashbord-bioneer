@@ -360,14 +360,14 @@ export const quranReciters = [
   },
   {
     id: 'abdul_basit',
-    name: 'عبد الباسط (mock)',
+    name: 'عبد الباسط ',
     active: false,
     audioAvailable: false,
     audioNote: 'غير مفعّل في التطبيق',
   },
   {
     id: 'minshawi',
-    name: 'المنشاوي (mock)',
+    name: 'المنشاوي ',
     active: false,
     audioAvailable: false,
     audioNote: 'مخطط لاحقاً',
@@ -815,7 +815,7 @@ const lib = (row) => {
     row.publishStatus ??
     (row.categoryId === 'review'
       ? 'review'
-      : row.linkStatus === 'معطّل (mock)'
+      : row.linkStatus === 'معطّل'
         ? 'missing_assets'
         : 'published');
   return {
@@ -972,7 +972,7 @@ export const libraryMediaItems = [
     duration: '03:33',
     moodTag: 'اختبار',
     itemType: 'video',
-    linkStatus: 'معطّل (mock)',
+    linkStatus: 'معطّل',
     showsWhen: 'يحتاج Referer: com.bayanour.bayanour',
   }),
 ];
@@ -1296,7 +1296,7 @@ export const assessmentResults = [
     yesCount: 4,
     noCount: 2,
     completionPct: 100,
-    recommendation: 'شجّعي التقليد الحركي واللعب أمام المرآة (mock).',
+    recommendation: 'شجّعي التقليد الحركي واللعب أمام المرآة .',
   },
   {
     id: 'r3',
@@ -1334,7 +1334,7 @@ export const assessmentRecommendations = [
   {
     id: 'rec1',
     basedOn: 'اختبار القدرات — يوسف',
-    text: 'زيادة جلسات التحفيز البصري والعاطفي حسب العمر (UI فقط).',
+    text: 'زيادة جلسات التحفيز البصري والعاطفي حسب العمر.',
     priority: 'متوسطة',
   },
   {
@@ -1386,7 +1386,7 @@ export const supportTickets = [
     boardStatus: 'تم الرد',
     body: 'درس الحساب اليوم 12 بدون صوت رغم رفع الصوت.',
     childMock: { name: 'آدم', age: '0-3 شهور' },
-    adminReply: 'شكراً لتواصلك — جرّبي إعادة تشغيل التطبيق. نتابع مع الفريق التقني (mock).',
+    adminReply: 'شكراً لتواصلك — جرّبي إعادة تشغيل التطبيق. نتابع مع الفريق التقني .',
   },
   {
     id: 104,
@@ -1398,7 +1398,7 @@ export const supportTickets = [
     boardStatus: 'تم الرد',
     body: 'وضع داكن مريح للعيون أثناء الرضاعة ليلاً.',
     childMock: { name: 'مريم', age: '12-18 شهر' },
-    adminReply: 'مقترح ممتاز — مُسجّل للنسخة القادمة (mock).',
+    adminReply: 'مقترح ممتاز — مُسجّل للنسخة القادمة .',
   },
   {
     id: 105,
@@ -1787,7 +1787,7 @@ export const cmsContentItems = [
     sectionId: 'healthCulture',
     title: 'اكتشاف قدرات وميول طفلي',
     subtitle: '0-2 سنة',
-    body: 'ملاحظة الميول المبكرة وتوجيه الطفل — من parenting_articles_how_to_teach (mock).',
+    body: 'ملاحظة الميول المبكرة وتوجيه الطفل — من parenting_articles_how_to_teach .',
     tags: ['قدرات', 'ميول'],
     targetAudience: '0-2 سنة',
     placement: 'parenting_article — discover_aptitudes',
@@ -1832,7 +1832,7 @@ export const cmsContentItems = [
     sectionId: 'subscription',
     title: 'باقة ذهبية — وصف',
     subtitle: 'subscription_screen',
-    body: 'منهج تعليمي متخصص لمرحلة طفلك العمرية بدقة — من subscription_plan_model (mock).',
+    body: 'منهج تعليمي متخصص لمرحلة طفلك العمرية بدقة — من subscription_plan_model .',
     tags: ['اشتراك', 'ذهبية'],
     targetAudience: 'قبل الشراء',
     placement: 'subscription_screen — بطاقة الباقة',
@@ -1847,7 +1847,7 @@ export const cmsContentItems = [
     sectionId: 'subscription',
     title: 'تجربة مجانية — تنبيه',
     subtitle: 'subscription_screen',
-    body: 'ابدأي التجربة المجانية — UI فقط، لا دفع حقيقي في النسخة الحالية.',
+    body: 'ابدأي التجربة المجانية، لا دفع حقيقي في النسخة الحالية.',
     tags: ['تجربة'],
     targetAudience: 'مستخدمون جدد',
     placement: 'subscription_screen — أعلى الشاشة',
@@ -1873,7 +1873,7 @@ export const assetSections = [
   { id: 'slideAudio', label: 'أصوات الشرائح' },
   { id: 'onboardingVideos', label: 'فيديوهات onboarding' },
   { id: 'quranAudio', label: 'صوت القرآن' },
-  { id: 'uploads', label: 'ملفات مرفوعة (mock)' },
+  { id: 'uploads', label: 'ملفات مرفوعة ' },
 ];
 
 export const assetFiles = [
@@ -2066,7 +2066,7 @@ export const notificationTemplates = [
     id: 'tpl_sub',
     label: 'قرب انتهاء الاشتراك',
     title: 'اشتراكك ينتهي خلال 3 أيام',
-    body: 'جدّدي الباقة الذهبية لمواصلة المنهج كاملاً — UI فقط.',
+    body: 'جدّدي الباقة الذهبية لمواصلة المنهج كاملاً.',
     type: 'اشتراك',
     audience: 'باقة فضية — تنتهي قريباً',
     deepLink: 'bayanour://subscription',
@@ -2232,10 +2232,10 @@ export const settingsPublishStates = [
 ];
 
 export const settingsIntegrations = [
-  { id: 'firebase', name: 'Firebase / Supabase', status: 'غير متصل — UI فقط' },
-  { id: 'payment', name: 'Payment (Apple / Google / Visa)', status: 'غير متصل — UI فقط' },
-  { id: 'push', name: 'Push notifications', status: 'غير متصل — UI فقط' },
-  { id: 'analytics', name: 'Analytics', status: 'غير متصل — UI فقط' },
+  { id: 'firebase', name: 'Firebase / Supabase', status: 'غير متصل' },
+  { id: 'payment', name: 'Payment (Apple / Google / Visa)', status: 'غير متصل' },
+  { id: 'push', name: 'Push notifications', status: 'غير متصل' },
+  { id: 'analytics', name: 'Analytics', status: 'غير متصل' },
 ];
 
 export const settingsAppInfo = {
@@ -2256,7 +2256,7 @@ export const publishFilterChips = [
 export function getItemPublishStatus(item) {
   if (item.publishStatus) return item.publishStatus;
   if (item.categoryId === 'review') return 'review';
-  if (item.linkStatus === 'معطّل (mock)') return 'missing_assets';
+  if (item.linkStatus === 'معطّل') return 'missing_assets';
   if (item.linkStatus === 'يحتاج مراجعة') return 'review';
   return 'published';
 }

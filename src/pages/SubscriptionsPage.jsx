@@ -37,11 +37,6 @@ export function SubscriptionsPage() {
     <div className="page-stack">
       <PageHeader title="الاشتراكات والباقات" />
 
-      <InfoBanner tone="warning">
-        الدفع غير متصل فعلياً (لا Apple Pay / Google Play / بوابة Visa حقيقية). هذه الصفحة UI فقط
-        للعرض والتخطيط — أي زر يعرض تنبيهاً «UI فقط».
-      </InfoBanner>
-
       <SectionHeader title="الباقات الحالية" />
       <div className="grid-2">
         {plans.map((p) => (

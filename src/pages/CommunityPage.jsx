@@ -59,11 +59,6 @@ export function CommunityPage() {
     <div className="page-stack">
       <PageHeader title="المجتمع والدعم" />
 
-      <InfoBanner tone="info">
-        UI فقط — لا إرسال ولا moderation حقيقي. البيانات من community_faq_data و
-        support_topics_data و mothers_club_screen.
-      </InfoBanner>
-
       <div className="tabs">
         {tabs.map(([id, label]) => (
           <button

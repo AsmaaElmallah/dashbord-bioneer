@@ -23,11 +23,6 @@ export function QuranSessionEditorPage() {
 
       <PageHeader title="محرر جلسة القرآن" extraBadges={['جلسة قرآن']} />
 
-      <InfoBanner tone="warning">
-        UI فقط — mp3 mock. لا قراءة/كتابة manifest ولا تشغيل صوت فعلي. متوافق مع{' '}
-        <Link to="/quran">صفحة القرآن</Link> في لوحة التحكم.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="مثال سريع" />
         <button

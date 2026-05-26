@@ -188,9 +188,6 @@ export function QuranSessionEditor({ value, onChange }) {
 
   return (
     <div className="quran-session-editor">
-      <InfoBanner tone="info">
-        QuranSessionEditor UI فقط — لا manifest، لا رفع mp3 حقيقي، لا تشغيل صوت.
-      </InfoBanner>
 
       <div className="grid-2 quran-session-editor__layout">
         <div className="quran-session-editor__main">

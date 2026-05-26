@@ -161,8 +161,6 @@ export function UsersPage() {
     <div className="page-stack">
       <PageHeader title="المستخدمون والأطفال" extraBadges={['mock data']} />
 
-      <p className="ui-only-hint">بيانات وهمية — لا اتصال بتطبيق Flutter (UI فقط).</p>
-
       <div className="tabs">
         {[
           ['users', 'المستخدمون'],

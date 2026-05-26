@@ -26,7 +26,7 @@ export function ArticleEditorPage() {
 
   const loadSample = (sectionId) => {
     setArticle(getArticleTemplate(sectionId));
-    showMock('تحميل نموذج mock — UI فقط');
+    showMock('تم تحميل النموذج');
   };
 
   return (
@@ -37,11 +37,6 @@ export function ArticleEditorPage() {
       </Link>
 
       <PageHeader title="محرر المقالات والنصوص الثابتة" extraBadges={['مقال / نص ثابت']} />
-
-      <InfoBanner tone="warning">
-        UI فقط — لا حفظ حقيقي ولا Backend. المحتوى المستهدف: المنهج، كيف أدرّس طفلي، ثقافة ولي الأمر،
-        الثقافة الصحية، قوانين المجتمع، رسائل الدعم، نصوص الاشتراك.
-      </InfoBanner>
 
       <AdminCard>
         <SectionHeader title="تحميل نموذج mock" />

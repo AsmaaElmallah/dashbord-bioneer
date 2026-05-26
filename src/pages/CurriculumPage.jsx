@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
-import { InfoBanner } from '../components/InfoBanner';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusBadge } from '../components/StatusBadge';
@@ -12,10 +11,6 @@ export function CurriculumPage() {
   return (
     <div className="page-stack">
       <PageHeader title="المناهج — مركز التحكم" />
-
-      <InfoBanner tone="info">
-        إدارة المسارات mock فقط — لا تعديل على ملفات Flutter من هنا (UI فقط).
-      </InfoBanner>
 
       <div className="grid-2">
         {tracks.map((t) => (

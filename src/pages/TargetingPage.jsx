@@ -77,11 +77,6 @@ export function TargetingPage() {
     <div className="page-stack">
       <PageHeader title="توجيه المحتوى — لمن وأين ومتى" />
 
-      <InfoBanner tone="info">
-        UI فقط — لا حفظ ولا Backend. الفئات العمرية من <code>BabyAgeRange</code>؛ الأقسام من
-        home_menu_data ومسارات المناهج.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="أمثلة جاهزة" />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

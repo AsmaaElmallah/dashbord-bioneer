@@ -31,10 +31,6 @@ export function SettingsPage() {
     <div className="page-stack">
       <PageHeader title="إعدادات لوحة التحكم" />
 
-      <InfoBanner tone="warning">
-        لا Auth ولا حفظ ولا Backend — كل الحقول والصلاحيات للعرض والتخطيط فقط (UI فقط).
-      </InfoBanner>
-
       <div className="cms-layout">
         <aside className="cms-sidebar">
           {settingsSections.map((s) => (
@@ -92,9 +88,9 @@ export function SettingsPage() {
                   checked={general.maintenance}
                   onChange={(e) => setGeneral((g) => ({ ...g, maintenance: e.target.checked }))}
                 />
-                وضع الصيانة (mock)
+                وضع الصيانة 
               </label>
-              <MockActionButton style={{ marginTop: 16 }} action="save">حفظ (UI فقط)</MockActionButton>
+              <MockActionButton style={{ marginTop: 16 }} action="save">حفظ</MockActionButton>
             </AdminCard>
           )}
 
@@ -150,7 +146,7 @@ export function SettingsPage() {
                               type="checkbox"
                               defaultChecked={settingsPermissionMatrix[role]?.[perm]}
                               readOnly
-                              title="UI فقط — للعرض"
+                              title="للعرض"
                             />
                           </td>
                         ))}

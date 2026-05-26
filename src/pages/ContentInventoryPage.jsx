@@ -129,7 +129,7 @@ export function ContentInventoryPage() {
 
   const runBulk = (action) => {
     if (selectedIds.length === 0) {
-      showMock('حدّد صفاً واحداً على الأقل (mock)');
+      showMock('حدّد صفاً واحداً على الأقل');
       return;
     }
     if (action === 'status') {
@@ -150,10 +150,6 @@ export function ContentInventoryPage() {
   return (
     <div className="page-stack content-entry-page content-inventory-page">
       <PageHeader title="فهرس المحتوى" extraBadges={['Inventory', 'Search']} />
-
-      <InfoBanner tone="warning">
-        UI فقط — فهرس شامل لكل المحتوى القابل للإدخال. بحث وفلاتر محلية · لا حفظ · لا Backend.
-      </InfoBanner>
 
       <div className="grid-4">
         <StatCard label="إجمالي العناصر" value={String(stats.total)} />

@@ -124,9 +124,6 @@ export function ActivityExerciseEditor({ value, onChange, draftItems = [], onAdd
 
   return (
     <div className="activity-exercise-editor">
-      <InfoBanner tone="info">
-        ActivityExerciseEditor UI فقط — لا فتح YouTube، لا حفظ بعد refresh.
-      </InfoBanner>
 
       <div className="grid-2 activity-exercise-editor__layout">
         <div className="activity-exercise-editor__form">

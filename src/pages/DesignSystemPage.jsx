@@ -13,7 +13,7 @@ export function DesignSystemPage() {
   return (
     <div className="page-stack">
       <PageHeader title="نظام التصميم — بيانور Admin" />
-      <InfoBanner>هذه الصفحة لعرض كل مكوّنات الواجهة. كل الأزرار mock — UI فقط.</InfoBanner>
+      <InfoBanner>هذه الصفحة لعرض مكوّنات واجهة لوحة التحكم.</InfoBanner>
 
       <SectionHeader title="Stat cards" />
       <div className="grid-3">

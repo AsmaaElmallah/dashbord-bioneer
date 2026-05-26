@@ -30,11 +30,6 @@ export function LibraryContentEditorPage() {
 
       <PageHeader title="محرر محتوى المكتبة" extraBadges={['YouTube']} />
 
-      <InfoBanner tone="warning">
-        UI فقط — أصوات الطبيعة · موسيقى هادئة · تهويدات. لا WebView ولا تحقق YouTube فعلي. متوافق مع{' '}
-        <Link to="/library">صفحة المكتبة</Link>.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="مثال سريع" />
         <button

@@ -31,11 +31,6 @@ export function ActivityExerciseEditorPage() {
 
       <PageHeader title="محرر الأنشطة والرياضة" extraBadges={['MediaAgeHub']} />
 
-      <InfoBanner tone="warning">
-        UI فقط — أنشطة وتمارين حسب العمر. لا فتح YouTube ولا حفظ. متوافق مع{' '}
-        <Link to="/activities">صفحة الأنشطة والرياضة</Link>.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="مثال سريع" />
         <button
@@ -43,7 +38,7 @@ export function ActivityExerciseEditorPage() {
           className="mock-btn mock-btn--outline"
           onClick={() => setItem(getExercise46MonthsMock())}
         >
-          تحميل تمرين 4-6 أشهر (mock)
+          تحميل تمرين 4-6 أشهر
         </button>
       </AdminCard>
 

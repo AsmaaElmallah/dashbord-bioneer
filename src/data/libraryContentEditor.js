@@ -1,6 +1,9 @@
 import { contentWizardPlans, libraryMediaItems, libraryTabs, mediaAgeGroups } from './mockData';
 
-export const libraryEditorCategories = libraryTabs.filter((t) => t.id !== 'review');
+export const libraryEditorCategories = [
+  ...libraryTabs.filter((t) => t.id !== 'review'),
+  { id: 'library_books', title: 'المكتبة' },
+];
 
 export const natureChipOptions = [
   { id: 'rain', label: 'مطر' },
@@ -14,7 +17,7 @@ export const libraryContentTypes = [
   { id: 'playlist', label: 'Playlist' },
 ];
 
-export const libraryLinkStatusOptions = ['سليم', 'يحتاج مراجعة', 'معطّل (mock)'];
+export const libraryLinkStatusOptions = ['سليم', 'يحتاج مراجعة', 'معطّل'];
 
 export const libraryPublishStatusOptions = ['مسودة', 'منشور', 'يحتاج مراجعة'];
 

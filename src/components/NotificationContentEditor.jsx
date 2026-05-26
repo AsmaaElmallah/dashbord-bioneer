@@ -86,9 +86,6 @@ export function NotificationContentEditor({ value, onChange }) {
 
   return (
     <div className="notification-content-editor">
-      <InfoBanner tone="info">
-        NotificationContentEditor UI فقط — لا Firebase، لا إرسال فعلي، لا Backend.
-      </InfoBanner>
 
       <div className="grid-2 notification-content-editor__layout">
         <div className="notification-content-editor__form">

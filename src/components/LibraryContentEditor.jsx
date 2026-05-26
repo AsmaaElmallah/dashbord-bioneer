@@ -117,9 +117,6 @@ export function LibraryContentEditor({ value, onChange }) {
 
   return (
     <div className="library-content-editor">
-      <InfoBanner tone="info">
-        LibraryContentEditor UI فقط — لا WebView، لا تحقق YouTube فعلي، لا Backend.
-      </InfoBanner>
 
       <div className="grid-2 library-content-editor__layout">
         <div className="library-content-editor__form">

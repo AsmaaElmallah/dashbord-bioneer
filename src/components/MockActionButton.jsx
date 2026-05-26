@@ -1,10 +1,10 @@
 import { useSnackbar } from '../context/SnackbarContext';
 
 const ACTION_MESSAGES = {
-  save: 'حفظ (UI فقط) — لم يُخزَّن أي شيء',
-  publish: 'نشر (UI فقط) — لم يُنشر للمستخدمين',
-  check: 'فحص (UI فقط) — لا تحقق حقيقي',
-  export: 'تصدير (UI فقط) — لم يُنزَّل ملف',
+  save: 'تم الحفظ',
+  publish: 'تم النشر',
+  check: 'اكتمل الفحص',
+  export: 'تم التصدير',
 };
 
 export function MockActionButton({
@@ -16,7 +16,7 @@ export function MockActionButton({
   ...rest
 }) {
   const { showMock } = useSnackbar();
-  const snackText = message ?? (action ? ACTION_MESSAGES[action] : 'UI فقط — لا يوجد Backend');
+  const snackText = message ?? (action ? ACTION_MESSAGES[action] : 'تم التنفيذ');
 
   return (
     <button

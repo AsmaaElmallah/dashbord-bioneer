@@ -94,8 +94,6 @@ export function AdminShell() {
 
           <div className="admin-topbar__right">
 
-            <span className="ui-only-badge ui-only-badge--topbar">UI فقط</span>
-
             <div className="admin-topbar__user">
 
               <span className="admin-topbar__user-name">مدير النظام</span>

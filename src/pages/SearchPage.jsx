@@ -22,7 +22,7 @@ export function SearchPage() {
         {q ? (
           <>
             <p style={{ marginTop: 0 }}>
-              بحث mock عن: <strong>{q}</strong> — {results.length} نتيجة (UI فقط، لا Backend).
+              نتائج البحث عن: <strong>{q}</strong> — {results.length} نتيجة.
             </p>
             {results.length === 0 ? (
               <EmptyState

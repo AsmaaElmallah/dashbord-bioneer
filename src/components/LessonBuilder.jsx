@@ -113,10 +113,6 @@ export function LessonBuilder({ value, onChange }) {
 
   return (
     <div className="lesson-builder">
-      <InfoBanner tone="info">
-        Lesson Builder شكلي — لا manifest حقيقي، لا تعديل assets، لا Backend.
-      </InfoBanner>
-
       <div className="grid-2 lesson-builder__layout">
         <div className="lesson-builder__form">
           <AdminCard>

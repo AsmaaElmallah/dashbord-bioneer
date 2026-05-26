@@ -174,9 +174,6 @@ export function AssessmentBuilder({
 
   return (
     <div className="assessment-builder">
-      <InfoBanner tone="info">
-        AssessmentBuilder + QuestionEditor — UI فقط. لا حفظ إجابات، لا تحليل طبي، لا Backend.
-      </InfoBanner>
 
       <div className="grid-2 assessment-builder__layout">
         <div className="assessment-builder__main">

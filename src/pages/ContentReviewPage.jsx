@@ -228,10 +228,6 @@ export function ContentReviewPage() {
     <div className="page-stack content-review-page content-entry-page">
       <PageHeader title="مراجعة المحتوى" extraBadges={['Workflow']} />
 
-      <InfoBanner tone="warning">
-        UI فقط — لا permissions حقيقية، لا حفظ بعد refresh. مسار مراجعة قبل النشر.
-      </InfoBanner>
-
       <div className="review-state-chips">
         {reviewWorkflowStates.map((s) => (
           <StatusBadge key={s.id} tone={s.tone}>

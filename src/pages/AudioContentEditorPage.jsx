@@ -26,11 +26,6 @@ export function AudioContentEditorPage() {
 
       <PageHeader title="محرر الصوت" extraBadges={['mp3 / m4a', 'Assets']} />
 
-      <InfoBanner tone="warning">
-        UI فقط — رفع mock للأصوات (شرائح m4a، جلسات mp3). لا upload حقيقي · متوافق مع{' '}
-        <Link to="/assets">صفحة الأصول</Link>.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="أمثلة سريعة" />
         <div className="content-entry-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -39,7 +34,7 @@ export function AudioContentEditorPage() {
             className="mock-btn mock-btn--outline"
             onClick={() => {
               setContent(getSlideAudioMock());
-              showMock('تحميل m4a شريحة mock — UI فقط');
+              showMock('تم تحميل مثال الشريحة');
             }}
           >
             m4a شريحة slide_001
@@ -49,7 +44,7 @@ export function AudioContentEditorPage() {
             className="mock-btn mock-btn--outline"
             onClick={() => {
               setContent(getQuranSessionAudioMock());
-              showMock('تحميل mp3 قرآن mock — UI فقط');
+              showMock('تم تحميل مثال الجلسة');
             }}
           >
             mp3 جلسة session_001

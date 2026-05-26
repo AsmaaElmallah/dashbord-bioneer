@@ -26,11 +26,6 @@ export function ImageContentEditorPage() {
 
       <PageHeader title="محرر الصورة" extraBadges={['PNG / JPG', 'Assets']} />
 
-      <InfoBanner tone="warning">
-        UI فقط — رفع mock للصور (غلاف، شريحة، CMS). لا upload حقيقي · متوافق مع{' '}
-        <Link to="/assets">صفحة الأصول</Link>.
-      </InfoBanner>
-
       <AdminCard>
         <SectionHeader title="أمثلة سريعة" />
         <div className="content-entry-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -39,7 +34,7 @@ export function ImageContentEditorPage() {
             className="mock-btn mock-btn--outline"
             onClick={() => {
               setContent(getCoverImageMock());
-              showMock('تحميل غلاف mock — UI فقط');
+              showMock('تم تحميل مثال الغلاف');
             }}
           >
             غلاف cover-bayanour.jpg
@@ -49,7 +44,7 @@ export function ImageContentEditorPage() {
             className="mock-btn mock-btn--outline"
             onClick={() => {
               setContent(getSlideAssetImageMock());
-              showMock('تحميل PNG شريحة mock — UI فقط');
+              showMock('تم تحميل مثال الشريحة');
             }}
           >
             PNG شريحة math-slide-05

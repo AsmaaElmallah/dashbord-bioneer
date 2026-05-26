@@ -158,11 +158,11 @@ export function AssetsPage() {
 
         <p style={{ margin: '8px 0 0', fontWeight: 700 }}>اسحب الملفات هنا</p>
 
-        <p className="text-caption">رفع وهمي — لا يعمل فعلياً (UI فقط)</p>
+        <p className="text-caption">اسحب الملفات أو اخترها من جهازك</p>
 
         <MockActionButton variant="outline" action="save" style={{ marginTop: 12 }}>
 
-          رفع ملف (mock)
+          رفع ملف
 
         </MockActionButton>
 

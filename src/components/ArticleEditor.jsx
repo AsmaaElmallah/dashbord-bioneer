@@ -202,10 +202,6 @@ export function ArticleEditor({ value, onChange }) {
 
   return (
     <div className="article-editor">
-      <InfoBanner tone="info">
-        محرر شكلي — لا rich text package. شريط الأدوات يضيف كتل mock فقط؛ لا حفظ حقيقي.
-      </InfoBanner>
-
       <div className="grid-2 article-editor__layout">
         <div className="article-editor__form">
           <AdminCard>

@@ -2,7 +2,6 @@ import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BulkImportPanel } from '../components/BulkImportPanel';
 import { AdminCard } from '../components/AdminCard';
-import { InfoBanner } from '../components/InfoBanner';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 
@@ -14,11 +13,7 @@ export function BulkImportPage() {
         العودة إلى استوديو المحتوى
       </Link>
 
-      <PageHeader title="استيراد جماعي" extraBadges={['Bulk Import', 'mock']} />
-
-      <InfoBanner tone="warning">
-        UI فقط — PPTX · صور/صوت · CSV أسئلة · CSV YouTube · Quran mp3 · manifest JSON. لا رفع ولا Backend.
-      </InfoBanner>
+      <PageHeader title="استيراد جماعي" extraBadges={['Bulk Import']} />
 
       <AdminCard>
         <SectionHeader title="استخدام مستقبلي" />
