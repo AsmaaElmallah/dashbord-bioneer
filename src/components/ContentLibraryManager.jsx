@@ -6,6 +6,7 @@ import { AdminTableContainer } from './AdminTableContainer';
 import { EmptyState } from './EmptyState';
 import { SectionHeader } from './SectionHeader';
 import { StatusBadge } from './StatusBadge';
+import { useAuth } from '../context/AuthContext';
 import { useSnackbar } from '../context/SnackbarContext';
 import {
   buildAgeHubItemPatchFromDraft,
@@ -28,6 +29,19 @@ import {
   updateMediaItemInState,
 } from '../data/contentLibraryAdmin';
 import { getYoutubeThumbnailUrl } from '../data/libraryContentEditor';
+import { isSupabaseEnabled } from '../lib/supabaseClient';
+import {
+  adminItemToRow,
+  ageHubGroupToRow,
+  ageHubItemToRow,
+  deleteAgeHubItemById,
+  deleteLibraryItem,
+  loadContentLibraryState,
+  translateLibrarySaveError,
+  upsertAgeHubGroup,
+  upsertAgeHubItem,
+  upsertLibraryItem,
+} from '../services/supabase/libraryService';
 import {
   ADMIN_STORAGE_KEYS,
   clearAdminState,
@@ -62,7 +76,8 @@ function firstAgeGroupId(state, tabId) {
 }
 
 export function ContentLibraryManager() {
-  const { showMock } = useSnackbar();
+  const { showMock, showSuccess, showError } = useSnackbar();
+  const { needsLogin } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
   const validTab = contentLibraryHubTabs.some((t) => t.id === tabFromUrl);
@@ -77,14 +92,75 @@ export function ContentLibraryManager() {
   const [mediaDraft, setMediaDraft] = useState(emptyMediaDraft);
   const [ageHubDraft, setAgeHubDraft] = useState(emptyAgeHubDraft('video'));
   const [selectedAgeGroupId, setSelectedAgeGroupId] = useState('age_0_3');
+  const [remoteLoading, setRemoteLoading] = useState(isSupabaseEnabled);
 
   const tabMeta = contentLibraryHubTabs.find((t) => t.id === tab);
   const isAgeHub = isAgeHubTab(tab);
   const isExercises = tab === 'exercises';
 
   useEffect(() => {
-    saveAdminState(ADMIN_STORAGE_KEYS.contentLibrary, state);
+    if (!isSupabaseEnabled) {
+      saveAdminState(ADMIN_STORAGE_KEYS.contentLibrary, state);
+    }
   }, [state]);
+
+  useEffect(() => {
+    if (!isSupabaseEnabled) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      const { state: remote, error } = await loadContentLibraryState();
+      if (cancelled) return;
+      if (error) {
+        showError(translateLibrarySaveError(error.message) ?? 'تعذّر تحميل المكتبة من Supabase');
+      } else if (remote) {
+        setState(remote);
+      }
+      setRemoteLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showError]);
+
+  const hubTypeForTab = (tabId) => (tabId === 'exercises' ? 'exercises' : 'activities');
+
+  const persistAgeHubItem = async (item, groupId, tabId) => {
+    if (!isSupabaseEnabled) return { ok: true };
+
+    if (needsLogin) {
+      showError('سجّلي الدخول أولاً لحفظ الرياضة والأنشطة على السحابة.');
+      return { ok: false };
+    }
+
+    const groups = getAgeHubGroups(state, tabId);
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) {
+      showError('فئة العمر غير موجودة.');
+      return { ok: false };
+    }
+
+    const sortIndex = group.items.findIndex((i) => i.id === item.id);
+    const groupSort = groups.findIndex((g) => g.id === groupId);
+
+    const { error: gErr } = await upsertAgeHubGroup(
+      ageHubGroupToRow(group, hubTypeForTab(tabId), groupSort >= 0 ? groupSort : 0),
+    );
+    if (gErr) {
+      showError(translateLibrarySaveError(gErr.message) ?? 'فشل حفظ فئة العمر');
+      return { ok: false };
+    }
+
+    const sortOrder = sortIndex >= 0 ? sortIndex : group.items.length;
+    const { error: iErr } = await upsertAgeHubItem(ageHubItemToRow(item, groupId, sortOrder));
+    if (iErr) {
+      showError(translateLibrarySaveError(iErr.message) ?? 'فشل الحفظ في Supabase');
+      return { ok: false };
+    }
+
+    return { ok: true };
+  };
 
   const switchTab = (id) => {
     setTab(id);
@@ -114,52 +190,100 @@ export function ContentLibraryManager() {
   const previewList = isAgeHub ? ageHubItems : mediaItems;
   const preview = previewList.find((i) => i.id === selectedId) ?? previewList[0] ?? null;
 
-  const handleAddMedia = () => {
+  const handleAddMedia = async () => {
     const result = createMediaItem(tab, mediaDraft);
     if (result.error) {
       showMock(result.error);
       return;
     }
+
+    if (isSupabaseEnabled) {
+      if (needsLogin) {
+        showError('سجّلي الدخول أولاً لحفظ المكتبة على السحابة.');
+        return;
+      }
+      const row = adminItemToRow(result.item, tab);
+      const { error } = await upsertLibraryItem(row);
+      if (error) {
+        showError(translateLibrarySaveError(error.message) ?? 'فشل الحفظ في Supabase');
+        return;
+      }
+    }
+
     setState((prev) => mergeMediaState(prev, tab, result.item));
     setSelectedId(result.item.id);
     setShowAddForm(false);
     setMediaDraft(emptyMediaDraft());
-    showMock(`تمت الإضافة إلى ${tabMeta?.title}`);
+    showSuccess(`تمت الإضافة إلى ${tabMeta?.title}${isSupabaseEnabled ? ' — محفوظ على السحابة' : ''}`);
   };
 
-  const handleDeleteMedia = (itemId) => {
+  const handleDeleteMedia = async (itemId) => {
     if (!window.confirm('حذف هذا العنصر؟')) return;
+
+    if (isSupabaseEnabled) {
+      if (needsLogin) {
+        showError('سجّلي الدخول أولاً لحذف من السحابة.');
+        return;
+      }
+      const { error } = await deleteLibraryItem(itemId);
+      if (error) {
+        showError(translateLibrarySaveError(error.message) ?? 'فشل الحذف من Supabase');
+        return;
+      }
+    }
+
     setState((prev) => removeMediaFromState(prev, tab, itemId));
     if (selectedId === itemId) setSelectedId(null);
-    showMock('تم الحذف');
+    showSuccess('تم الحذف');
   };
 
-  const handleAddAgeHub = () => {
+  const handleAddAgeHub = async () => {
     const groups = getAgeHubGroups(state, tab);
     const result = isExercises
       ? createExerciseItem(groups, selectedAgeGroupId, ageHubDraft)
       : createActivityItem(groups, selectedAgeGroupId, ageHubDraft);
     if (result.error) {
-      showMock(result.error);
+      showError(result.error);
       return;
     }
+
+    const saved = await persistAgeHubItem(result.item, selectedAgeGroupId, tab);
+    if (!saved.ok) return;
+
     const stateKey = getAgeHubStateKey(tab);
     setState((prev) => ({ ...prev, [stateKey]: result.groups }));
     setSelectedId(result.item.id);
     setShowAddForm(false);
     setAgeHubDraft(emptyAgeHubDraft(isExercises ? 'video' : 'playlist'));
-    showMock(isExercises ? 'تمت إضافة التمرين' : 'تمت إضافة النشاط');
+    showSuccess(
+      isExercises
+        ? 'تمت إضافة التمرين — محفوظ على السحابة'
+        : 'تمت إضافة النشاط — محفوظ على السحابة',
+    );
   };
 
-  const handleDeleteAgeHub = (itemId) => {
+  const handleDeleteAgeHub = async (itemId) => {
     if (!window.confirm(isExercises ? 'حذف هذا التمرين؟' : 'حذف هذا النشاط؟')) return;
+
+    if (isSupabaseEnabled) {
+      if (needsLogin) {
+        showError('سجّلي الدخول أولاً لحذف من السحابة.');
+        return;
+      }
+      const { error } = await deleteAgeHubItemById(itemId);
+      if (error) {
+        showError(translateLibrarySaveError(error.message) ?? 'فشل الحذف من Supabase');
+        return;
+      }
+    }
+
     const stateKey = getAgeHubStateKey(tab);
     setState((prev) => ({
       ...prev,
       [stateKey]: deleteAgeHubItem(getAgeHubGroups(prev, tab), selectedAgeGroupId, itemId),
     }));
     if (selectedId === itemId) setSelectedId(null);
-    showMock('تم الحذف');
+    showSuccess('تم الحذف');
   };
 
   const applyYoutubePaste = (value, setDraft) => {
@@ -210,7 +334,7 @@ export function ContentLibraryManager() {
     setShowAddForm(false);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!preview || !editDraft) return;
     if (isAgeHub) {
       const result = buildAgeHubItemPatchFromDraft(editDraft, { isExercise: isExercises });
@@ -219,14 +343,24 @@ export function ContentLibraryManager() {
         return;
       }
       const stateKey = getAgeHubStateKey(tab);
+      const nextGroups = updateAgeHubItem(
+        getAgeHubGroups(state, tab),
+        selectedAgeGroupId,
+        preview.id,
+        result.patch,
+      );
+      const updated = nextGroups
+        .find((g) => g.id === selectedAgeGroupId)
+        ?.items.find((i) => i.id === preview.id);
+
+      if (updated) {
+        const saved = await persistAgeHubItem(updated, selectedAgeGroupId, tab);
+        if (!saved.ok) return;
+      }
+
       setState((prev) => ({
         ...prev,
-        [stateKey]: updateAgeHubItem(
-          getAgeHubGroups(prev, tab),
-          selectedAgeGroupId,
-          preview.id,
-          result.patch,
-        ),
+        [stateKey]: nextGroups,
       }));
     } else {
       const result = buildMediaItemPatchFromDraft(editDraft, tab);
@@ -234,11 +368,24 @@ export function ContentLibraryManager() {
         showMock(result.error);
         return;
       }
-      setState((prev) => updateMediaItemInState(prev, tab, preview.id, result.patch));
+      const nextState = updateMediaItemInState(state, tab, preview.id, result.patch);
+      const updated = getMediaItemsForTab(nextState, tab).find((i) => i.id === preview.id);
+      if (isSupabaseEnabled && updated) {
+        if (needsLogin) {
+          showError('سجّلي الدخول أولاً لحفظ التعديل على السحابة.');
+          return;
+        }
+        const { error } = await upsertLibraryItem(adminItemToRow(updated, tab));
+        if (error) {
+          showError(translateLibrarySaveError(error.message) ?? 'فشل حفظ التعديل في Supabase');
+          return;
+        }
+      }
+      setState(nextState);
     }
     setEditing(false);
     setEditDraft(null);
-    showMock('تم حفظ التعديل');
+    showSuccess(isSupabaseEnabled ? 'تم حفظ التعديل على السحابة' : 'تم حفظ التعديل');
   };
 
   const handleResetStorage = () => {
@@ -262,6 +409,15 @@ export function ContentLibraryManager() {
 
   return (
     <div className="content-library-manager">
+      {isSupabaseEnabled && (
+        <p className="text-caption" style={{ marginBottom: 12 }}>
+          {remoteLoading
+            ? 'جاري تحميل المكتبة من Supabase…'
+            : needsLogin
+              ? 'متصل بـ Supabase — سجّلي الدخول لحفظ كل التبويبات (وسائط + رياضة + أنشطة)'
+              : 'متصل بـ Supabase — كل التبويبات تُحفظ في السحابة (library_items + age_hub)'}
+        </p>
+      )}
       <div className="tabs">
         {contentLibraryHubTabs.map((t) => (
           <button

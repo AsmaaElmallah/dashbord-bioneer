@@ -188,6 +188,10 @@
   to { transform: rotate(360deg); }
 }
 
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
 .snackbar {
   position: fixed;
   bottom: 24px;
@@ -200,6 +204,32 @@
   font-weight: 600;
   z-index: 9999;
   box-shadow: var(--shadow-lift);
+}
+
+.snackbar--success {
+  background: linear-gradient(135deg, #059669, #047857);
+}
+
+.snackbar--error {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.quran-save-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.35);
+  font-size: 0.875rem;
+}
+
+.quran-save-banner--pending {
+  background: rgba(109, 40, 217, 0.08);
+  border-color: rgba(109, 40, 217, 0.3);
 }
 
 .tabs {

@@ -1,4 +1,4 @@
-import { Plus, Trash2, X } from 'lucide-react';
+import { CheckCircle2, Cloud, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AudioFilePick } from '../AudioFilePick';
@@ -6,6 +6,7 @@ import { AdminCard } from '../AdminCard';
 import { AdminTableContainer } from '../AdminTableContainer';
 import { SectionHeader } from '../SectionHeader';
 import { StatusBadge } from '../StatusBadge';
+import { useAuth } from '../../context/AuthContext';
 import { useSnackbar } from '../../context/SnackbarContext';
 import {
   buildKhatmahDayNodes,
@@ -21,6 +22,15 @@ import {
 } from '../../data/quranJourneyAdmin';
 import { getKhatmahPlanSummary } from '../../data/quranSessionEditor';
 import { quranOverview } from '../../data/mockData';
+import { isSupabaseEnabled } from '../../lib/supabaseClient';
+import {
+  adminSessionToRow,
+  deleteQuranSession,
+  fetchAllQuranSessions,
+  translateQuranSaveError,
+  uploadQuranAudio,
+  upsertQuranSession,
+} from '../../services/supabase/quranService';
 import {
   ADMIN_STORAGE_KEYS,
   loadAdminArrayState,
@@ -36,15 +46,60 @@ const sessionStatusTone = {
   مسودة: 'muted',
 };
 
+function markSessionAudioReady(session, audioFile, storagePath) {
+  const fileName = audioFile?.name ?? session.file;
+  return {
+    ...session,
+    file: fileName,
+    storagePath: storagePath ?? session.storagePath ?? null,
+    status: 'موجود',
+    statusKey: 'ok',
+    cloudSaved: Boolean(storagePath),
+    audioFile: audioFile
+      ? {
+          name: audioFile.name,
+          sizeMock: audioFile.sizeMock ?? '—',
+          notUploaded: !storagePath,
+          uploaded: Boolean(storagePath),
+        }
+      : session.audioFile,
+  };
+}
+
 export function QuranJourneyExplorer() {
-  const { showMock } = useSnackbar();
+  const { showMock, showSuccess, showError } = useSnackbar();
+  const { needsLogin } = useAuth();
   const [sessions, setSessions] = useState(() =>
     loadAdminArrayState(ADMIN_STORAGE_KEYS.quranSessions, seedQuranJourneySessions),
   );
 
+  const [remoteLoading, setRemoteLoading] = useState(isSupabaseEnabled);
+
   useEffect(() => {
-    saveAdminState(ADMIN_STORAGE_KEYS.quranSessions, sessions);
+    if (!isSupabaseEnabled) {
+      saveAdminState(ADMIN_STORAGE_KEYS.quranSessions, sessions);
+    }
   }, [sessions]);
+
+  useEffect(() => {
+    if (!isSupabaseEnabled) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await fetchAllQuranSessions();
+      if (cancelled) return;
+      if (error) {
+        showMock(error.message ?? 'تعذّر تحميل جلسات القرآن');
+      } else if (data?.length) {
+        setSessions(data);
+      }
+      setRemoteLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showMock]);
   const [view, setView] = useState('journey');
   const [jumpKhatmah, setJumpKhatmah] = useState('1');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -58,6 +113,10 @@ export function QuranJourneyExplorer() {
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [filters, setFilters] = useState({ khatmah: 'all', status: 'all' });
+  const [savingNew, setSavingNew] = useState(false);
+  const [savingAudioId, setSavingAudioId] = useState(null);
+  const [pendingAudio, setPendingAudio] = useState(null);
+  const [lastSavedSessionId, setLastSavedSessionId] = useState(null);
 
   const filteredSessions = useMemo(() => filterQuranSessions(sessions, filters), [sessions, filters]);
 
@@ -80,6 +139,10 @@ export function QuranJourneyExplorer() {
 
   const selectedSession =
     daySessions.find((s) => s.id === selectedSessionId) ?? daySessions[0] ?? null;
+
+  useEffect(() => {
+    setPendingAudio(null);
+  }, [selectedSessionId]);
 
   const khatmahSummary = selectedKhatmah ? getKhatmahPlanSummary(selectedKhatmah) : null;
 
@@ -161,31 +224,117 @@ export function QuranJourneyExplorer() {
     setAddDraft({ audioFile: null, title: '', surahRange: '', durationMinutes: '' });
   };
 
-  const handleSaveNewSession = () => {
+  const mergeSavedSession = (saved) => {
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === saved.id);
+      if (idx === -1) return [...prev, saved];
+      return prev.map((s) => (s.id === saved.id ? saved : s));
+    });
+    setLastSavedSessionId(saved.id);
+    setSelectedSessionId(saved.id);
+  };
+
+  const persistSession = async (session, audioFile) => {
+    const fileMeta = audioFile ?? session.audioFile;
+    let next = attachAudioToSession(session, fileMeta);
+
+    if (isSupabaseEnabled && needsLogin) {
+      showError('سجّلي الدخول أولاً من الشريط العلوي لحفظ الجلسة والصوت على السحابة.');
+      return null;
+    }
+
+    if (isSupabaseEnabled && fileMeta?.rawFile) {
+      const upload = await uploadQuranAudio(fileMeta, { sessionNumber: next.session });
+      if (upload.error) {
+        showError(translateQuranSaveError(upload.error.message) ?? 'فشل رفع الصوت');
+        return null;
+      }
+      if (upload.path) {
+        next = markSessionAudioReady(
+          {
+            ...next,
+            audioPath: `assets/audio/quran/ahmed_khader/half_hizb/${next.file}`,
+          },
+          fileMeta,
+          upload.path,
+        );
+      }
+    }
+
+    if (isSupabaseEnabled) {
+      const { data, error } = await upsertQuranSession(adminSessionToRow(next));
+      if (error) {
+        showError(translateQuranSaveError(error.message) ?? 'فشل حفظ الجلسة في Supabase');
+        return null;
+      }
+      if (data) next = data;
+      else next = markSessionAudioReady(next, fileMeta, next.storagePath);
+    } else {
+      next = markSessionAudioReady(next, fileMeta, next.storagePath);
+    }
+
+    return next;
+  };
+
+  const handleSaveNewSession = async () => {
     const result = createNewSessionForDay(sessions, selectedKhatmah, selectedDay, addDraft);
     if (result.error) {
-      showMock(result.error);
+      showError(result.error);
       return;
     }
-    setSessions((prev) => [...prev, result.session]);
-    setSelectedSessionId(result.session.id);
-    setShowAddForm(false);
-    resetAddDraft();
-    showMock(`تم ربط ${result.session.file} بالجلسة`);
+
+    setSavingNew(true);
+    try {
+      const saved = await persistSession(result.session, addDraft.audioFile);
+      if (!saved) return;
+
+      mergeSavedSession(saved);
+      setShowAddForm(false);
+      resetAddDraft();
+      showSuccess(
+        isSupabaseEnabled
+          ? `تم حفظ الجلسة #${saved.session} والصوت على السحابة`
+          : `تم حفظ الجلسة #${saved.session} محلياً`,
+      );
+    } finally {
+      setSavingNew(false);
+    }
   };
 
-  const handleAttachAudioToSelected = (audioFile) => {
-    if (!selectedSessionId || !audioFile) return;
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === selectedSessionId ? attachAudioToSession(s, audioFile) : s,
-      ),
-    );
-    showMock(`تم تحديث الصوت: ${audioFile.name}`);
+  const handleSaveAudioForSelected = async () => {
+    const audioFile = pendingAudio ?? selectedSession?.audioFile;
+    if (!selectedSessionId || !audioFile) {
+      showError('اختاري ملف mp3 أو m4a أولاً.');
+      return;
+    }
+
+    const current = sessions.find((s) => s.id === selectedSessionId);
+    if (!current) return;
+
+    setSavingAudioId(selectedSessionId);
+    try {
+      const saved = await persistSession(current, audioFile);
+      if (!saved) return;
+
+      mergeSavedSession(saved);
+      setPendingAudio(null);
+      showSuccess(`تم حفظ صوت الجلسة #${saved.session} — الحالة: موجود`);
+    } finally {
+      setSavingAudioId(null);
+    }
   };
 
-  const handleDeleteSession = (id) => {
+  const handleDeleteSession = async (id) => {
     if (!window.confirm('حذف هذه الجلسة؟')) return;
+
+    if (isSupabaseEnabled) {
+      const { error } = await deleteQuranSession(id);
+      if (error) {
+        showMock(error.message ?? 'فشل الحذف من Supabase');
+        return;
+      }
+    }
+
     setSessions((prev) => prev.filter((s) => s.id !== id));
     if (selectedSessionId === id) setSelectedSessionId(null);
     showMock('تم حذف الجلسة');
@@ -198,6 +347,15 @@ export function QuranJourneyExplorer() {
 
   return (
     <div className="quran-journey-explorer">
+      {isSupabaseEnabled && (
+        <p className="text-caption" style={{ marginBottom: 12 }}>
+          {remoteLoading
+            ? 'جاري تحميل الجلسات من Supabase…'
+            : needsLogin
+              ? 'متصل بـ Supabase — سجّلي الدخول لحفظ الصوت والجلسات'
+              : 'متصل بـ Supabase — الحفظ والرفع في السحابة'}
+        </p>
+      )}
       <JourneyBreadcrumb items={breadcrumbs} onNavigate={handleBreadcrumb} />
 
       <div className="filters-row" style={{ marginTop: 12, marginBottom: 12 }}>
@@ -333,9 +491,16 @@ export function QuranJourneyExplorer() {
                     type="button"
                     className="mock-btn mock-btn--primary"
                     onClick={handleSaveNewSession}
-                    disabled={!addDraft.audioFile}
+                    disabled={!addDraft.audioFile || savingNew}
                   >
-                    حفظ الجلسة
+                    {savingNew ? (
+                      <>
+                        <Loader2 size={16} className="spin" aria-hidden />
+                        جاري الحفظ…
+                      </>
+                    ) : (
+                      'حفظ الجلسة'
+                    )}
                   </button>
                   <button
                     type="button"
@@ -390,6 +555,16 @@ export function QuranJourneyExplorer() {
                           <StatusBadge tone={sessionStatusTone[s.status] ?? 'muted'}>
                             {s.status}
                           </StatusBadge>
+                          {s.storagePath && (
+                            <StatusBadge tone="success" style={{ marginRight: 6 }}>
+                              <Cloud size={12} style={{ verticalAlign: 'middle' }} /> سحابة
+                            </StatusBadge>
+                          )}
+                          {lastSavedSessionId === s.id && (
+                            <StatusBadge tone="info" style={{ marginRight: 6 }}>
+                              محفوظ للتو
+                            </StatusBadge>
+                          )}
                         </td>
                         <td>
                           <button
@@ -417,6 +592,25 @@ export function QuranJourneyExplorer() {
             <SectionHeader title="تفاصيل الجلسة / السورة" />
             {selectedSession ? (
               <>
+                {selectedSession.cloudSaved || selectedSession.storagePath ? (
+                  <div className="quran-save-banner" role="status">
+                    <CheckCircle2 size={18} color="var(--success, #059669)" aria-hidden />
+                    <span>
+                      <strong>محفوظة على السحابة</strong>
+                      {selectedSession.storagePath && (
+                        <>
+                          {' '}
+                          — <code style={{ fontSize: '0.75rem' }}>{selectedSession.storagePath}</code>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                ) : pendingAudio || selectedSession.audioFile ? (
+                  <div className="quran-save-banner quran-save-banner--pending" role="status">
+                    ملف صوت جاهز — اضغطي «رفع وحفظ الصوت» لإتمام الحفظ على السحابة.
+                  </div>
+                ) : null}
+
                 <h4 style={{ margin: '0 0 8px', color: 'var(--track-quran)' }}>
                   {selectedSession.title}
                 </h4>
@@ -428,21 +622,51 @@ export function QuranJourneyExplorer() {
                 </p>
                 <SectionHeader title="ملف الصوت" />
                 <AudioFilePick
-                  label="رفع / استبدال mp3"
-                  file={selectedSession.audioFile}
+                  label="اختيار mp3 / m4a"
+                  file={pendingAudio ?? selectedSession.audioFile}
                   onPick={(audioFile) => {
-                    if (audioFile) handleAttachAudioToSelected(audioFile);
-                    else {
+                    if (audioFile) {
+                      setPendingAudio(audioFile);
+                      setLastSavedSessionId(null);
+                    } else {
+                      setPendingAudio(null);
                       setSessions((prev) =>
                         prev.map((s) =>
                           s.id === selectedSessionId
-                            ? { ...s, audioFile: null, status: 'ناقص', statusKey: 'missing' }
+                            ? {
+                                ...s,
+                                audioFile: null,
+                                storagePath: null,
+                                cloudSaved: false,
+                                status: 'ناقص',
+                                statusKey: 'missing',
+                              }
                             : s,
                         ),
                       );
                     }
                   }}
                 />
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    className="mock-btn mock-btn--primary"
+                    onClick={handleSaveAudioForSelected}
+                    disabled={
+                      savingAudioId === selectedSessionId ||
+                      !(pendingAudio ?? selectedSession.audioFile)?.rawFile
+                    }
+                  >
+                    {savingAudioId === selectedSessionId ? (
+                      <>
+                        <Loader2 size={16} className="spin" aria-hidden />
+                        جاري الرفع والحفظ…
+                      </>
+                    ) : (
+                      'رفع وحفظ الصوت'
+                    )}
+                  </button>
+                </div>
                 <p>
                   <strong>مسار الملف:</strong>
                   <br />

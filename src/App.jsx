@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import { SnackbarProvider } from './context/SnackbarContext';
 import { AdminShell } from './layout/AdminShell';
 import { OverviewPage } from './pages/OverviewPage';
@@ -37,12 +38,15 @@ import { BulkImportPage } from './pages/BulkImportPage';
 import { ContentInventoryPage } from './pages/ContentInventoryPage';
 import { ImageContentEditorPage } from './pages/ImageContentEditorPage';
 import { AudioContentEditorPage } from './pages/AudioContentEditorPage';
+import { LoginPage } from './pages/LoginPage';
 
 export default function App() {
   return (
     <SnackbarProvider>
+      <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<AdminShell />}>
             <Route index element={<OverviewPage />} />
             <Route path="content-studio" element={<ContentStudioPage />} />
@@ -84,6 +88,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </AuthProvider>
     </SnackbarProvider>
   );
 }

@@ -11,6 +11,7 @@ export function mockFileFromInput(file) {
     name: file.name,
     sizeMock: formatSize(file.size),
     notUploaded: true,
+    rawFile: file,
   };
 }
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { InfoBanner } from '../components/InfoBanner';
@@ -6,6 +7,7 @@ import { MockActionButton } from '../components/MockActionButton';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusBadge } from '../components/StatusBadge';
+import { isSupabaseConfigured, isSupabaseEnabled } from '../lib/supabaseClient';
 import {
   settingsAppInfo,
   settingsIntegrations,
@@ -16,6 +18,12 @@ import {
   settingsRoles,
   settingsSections,
 } from '../data/mockData';
+
+function supabaseIntegrationStatus() {
+  if (!isSupabaseConfigured) return 'غير مُعدّ — أضف .env';
+  if (!isSupabaseEnabled) return 'مُعدّ — عطّل (VITE_USE_SUPABASE=false)';
+  return 'متصل';
+}
 
 export function SettingsPage() {
   const [section, setSection] = useState('general');
@@ -173,22 +181,43 @@ export function SettingsPage() {
 
           {section === 'integrations' && (
             <AdminCard>
-              <SectionHeader title="التكاملات المستقبلية" />
-              {settingsIntegrations.map((int) => (
-                <div
-                  key={int.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 0',
-                    borderBottom: '1px solid rgba(196,181,253,0.25)',
-                  }}
-                >
-                  <span>{int.name}</span>
-                  <StatusBadge tone="muted">{int.status}</StatusBadge>
-                </div>
-              ))}
+              <SectionHeader title="التكاملات" />
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 0',
+                  borderBottom: '1px solid rgba(196,181,253,0.25)',
+                }}
+              >
+                <span>Supabase (قاعدة البيانات + Storage)</span>
+                <StatusBadge tone={isSupabaseEnabled ? 'success' : 'warning'}>
+                  {supabaseIntegrationStatus()}
+                </StatusBadge>
+              </div>
+              {isSupabaseConfigured && (
+                <p className="text-caption" style={{ marginTop: 8 }}>
+                  <Link to="/login">تسجيل دخول الأدمن</Link> مطلوب لكتابة المحتوى على السحابة (RLS).
+                </p>
+              )}
+              {settingsIntegrations
+                .filter((int) => int.id !== 'firebase')
+                .map((int) => (
+                  <div
+                    key={int.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '12px 0',
+                      borderBottom: '1px solid rgba(196,181,253,0.25)',
+                    }}
+                  >
+                    <span>{int.name}</span>
+                    <StatusBadge tone="muted">{int.status}</StatusBadge>
+                  </div>
+                ))}
             </AdminCard>
           )}
 

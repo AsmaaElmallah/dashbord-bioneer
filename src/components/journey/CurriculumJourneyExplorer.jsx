@@ -1,4 +1,4 @@
-import { Plus, Trash2, X } from 'lucide-react';
+import { CheckCircle2, Cloud, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SlideMediaSourcePick } from '../SlideMediaSourcePick';
@@ -8,7 +8,18 @@ import { AdminTableContainer } from '../AdminTableContainer';
 import { InfoBanner } from '../InfoBanner';
 import { SectionHeader } from '../SectionHeader';
 import { StatusBadge } from '../StatusBadge';
+import { useAuth } from '../../context/AuthContext';
 import { useSnackbar } from '../../context/SnackbarContext';
+import { isSupabaseEnabled } from '../../lib/supabaseClient';
+import {
+  CURRICULUM_CLOUD_TRACKS,
+  curriculumSlideToRow,
+  deleteCurriculumSlide,
+  fetchCurriculumSlides,
+  translateCurriculumSaveError,
+  uploadSlideMedia,
+  upsertCurriculumSlide,
+} from '../../services/supabase/curriculumService';
 import {
   attachSlideMedia,
   buildLessonDayNodes,
@@ -40,15 +51,43 @@ import { JourneyPathView } from './JourneyPathView';
 const assetTone = { موجود: 'success', ناقص: 'error', 'يحتاج مراجعة': 'warning' };
 
 export function CurriculumJourneyExplorer({ trackConfig }) {
-  const { showMock } = useSnackbar();
-  const slidesStorageKey = ADMIN_STORAGE_KEYS.curriculumSlides(trackConfig.trackId);
+  const { showMock, showSuccess, showError } = useSnackbar();
+  const { needsLogin } = useAuth();
+  const trackId = trackConfig.trackId;
+  const useCloud = isSupabaseEnabled && CURRICULUM_CLOUD_TRACKS.has(trackId);
+
+  const slidesStorageKey = ADMIN_STORAGE_KEYS.curriculumSlides(trackId);
   const [slides, setSlides] = useState(() =>
     loadAdminArrayState(slidesStorageKey, trackConfig.seedSlides),
   );
+  const [remoteLoading, setRemoteLoading] = useState(useCloud);
+  const [savingNew, setSavingNew] = useState(false);
+  const [savingSlideId, setSavingSlideId] = useState(null);
+  const [lastSavedSlideId, setLastSavedSlideId] = useState(null);
 
   useEffect(() => {
-    saveAdminState(slidesStorageKey, slides);
-  }, [slides, slidesStorageKey]);
+    if (!useCloud) saveAdminState(slidesStorageKey, slides);
+  }, [slides, slidesStorageKey, useCloud]);
+
+  useEffect(() => {
+    if (!useCloud) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await fetchCurriculumSlides(trackId);
+      if (cancelled) return;
+      if (error) {
+        showError(error.message ?? 'تعذّر تحميل شرائح المنهج');
+      } else if (data?.length) {
+        setSlides(data);
+      }
+      setRemoteLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId, useCloud, showError]);
   const [view, setView] = useState('journey');
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -207,38 +246,142 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
     });
   };
 
-  const handleSaveNewSlide = () => {
+  const mergeSavedSlide = (saved) => {
+    setSlides((prev) => {
+      const idx = prev.findIndex((s) => s.id === saved.id);
+      if (idx === -1) return [...prev, saved];
+      return prev.map((s) => (s.id === saved.id ? saved : s));
+    });
+    setLastSavedSlideId(saved.id);
+    setSelectedSlideId(saved.id);
+  };
+
+  const persistSlide = async (slide) => {
+    let next = attachSlideMedia(slide, {
+      imageFile: slide.imageFile,
+      audioFile: slide.audioFile,
+      pptxBundle:
+        slide.pptxSource && slide.imageFile
+          ? { pptxFile: slide.pptxSource, imageFile: slide.imageFile, audioFile: slide.audioFile }
+          : null,
+    });
+
+    if (useCloud) {
+      if (needsLogin) {
+        showError('سجّلي الدخول أولاً لحفظ الشرائح على السحابة.');
+        return null;
+      }
+
+      const uploaded = await uploadSlideMedia(next, trackId);
+      if (uploaded.error) {
+        showError(translateCurriculumSaveError(uploaded.error.message) ?? 'فشل رفع الوسائط');
+        return null;
+      }
+      next = {
+        ...uploaded.slide,
+        cloudSaved: Boolean(uploaded.slide.imageStoragePath || uploaded.slide.audioStoragePath),
+      };
+
+      const { data, error } = await upsertCurriculumSlide(curriculumSlideToRow(next, trackId));
+      if (error) {
+        showError(translateCurriculumSaveError(error.message) ?? 'فشل حفظ الشريحة');
+        return null;
+      }
+      if (data) next = data;
+    }
+
+    return next;
+  };
+
+  const handleSaveNewSlide = async () => {
     const result = createNewSlideForDay(slides, trackConfig, selectedLesson, selectedDay, {
       ...addDraft,
       packageId: addDraft.packageId || trackConfig.defaultPackageId(selectedLesson),
     });
     if (result.error) {
-      showMock(result.error);
+      showError(result.error);
       return;
     }
-    setSlides((prev) => [...prev, result.slide]);
-    setSelectedSlideId(result.slide.id);
-    setShowAddForm(false);
-    resetAddDraft();
-    showMock(addDraft.pptxFile ? 'تمت إضافة الشريحة من PowerPoint' : 'تمت إضافة الشريحة');
+
+    setSavingNew(true);
+    try {
+      const saved = await persistSlide(result.slide);
+      if (!saved) return;
+
+      mergeSavedSlide(saved);
+      setShowAddForm(false);
+      resetAddDraft();
+      showSuccess(
+        useCloud
+          ? `تم حفظ الشريحة #${saved.globalIndex} على السحابة`
+          : addDraft.pptxFile
+            ? 'تمت إضافة الشريحة من PowerPoint (محلي)'
+            : 'تمت إضافة الشريحة (محلي)',
+      );
+    } finally {
+      setSavingNew(false);
+    }
   };
 
-  const handleDeleteSlide = (id) => {
+  const handleSaveSelectedSlide = async () => {
+    if (!selectedSlideId) return;
+    const current = slides.find((s) => s.id === selectedSlideId);
+    if (!current) return;
+
+    setSavingSlideId(selectedSlideId);
+    try {
+      const saved = await persistSlide(current);
+      if (!saved) return;
+      mergeSavedSlide(saved);
+      showSuccess(`تم حفظ الشريحة #${saved.globalIndex} — صورة: ${saved.imageStatus} · صوت: ${saved.audioStatus}`);
+    } finally {
+      setSavingSlideId(null);
+    }
+  };
+
+  const handleDeleteSlide = async (id) => {
     if (!window.confirm('حذف هذه الشريحة؟')) return;
+
+    if (useCloud) {
+      if (needsLogin) {
+        showError('سجّلي الدخول أولاً لحذف من السحابة.');
+        return;
+      }
+      const { error } = await deleteCurriculumSlide(id);
+      if (error) {
+        showError(translateCurriculumSaveError(error.message) ?? 'فشل الحذف');
+        return;
+      }
+    }
+
     setSlides((prev) => prev.filter((s) => s.id !== id));
     if (selectedSlideId === id) setSelectedSlideId(null);
-    showMock('تم حذف الشريحة');
+    showSuccess('تم حذف الشريحة');
   };
 
   const patchSelectedSlide = (partial) => {
     if (!selectedSlideId) return;
+    setLastSavedSlideId(null);
     setSlides((prev) =>
       prev.map((s) => (s.id === selectedSlideId ? attachSlideMedia(s, partial) : s)),
     );
   };
 
+  const selectedHasUploadableMedia = selectedSlide
+    ? Boolean(selectedSlide.imageFile?.rawFile || selectedSlide.audioFile?.rawFile)
+    : false;
+
   return (
     <div className="curriculum-journey-explorer">
+      {useCloud && (
+        <p className="text-caption" style={{ marginBottom: 12 }}>
+          {remoteLoading
+            ? `جاري تحميل شرائح ${trackConfig.journeyTitle} من Supabase…`
+            : needsLogin
+              ? `${trackConfig.journeyTitle} — سجّلي الدخول لحفظ الشرائح على السحابة`
+              : `${trackConfig.journeyTitle} — الحفظ على Supabase (slide-media)`}
+        </p>
+      )}
       <JourneyBreadcrumb items={breadcrumbs} onNavigate={handleBreadcrumb} />
 
       <div className="filters-row" style={{ marginTop: 12, marginBottom: 12 }}>
@@ -502,9 +645,16 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
                     type="button"
                     className="mock-btn mock-btn--primary"
                     onClick={handleSaveNewSlide}
-                    disabled={!slideMediaReady(addDraft)}
+                    disabled={!slideMediaReady(addDraft) || savingNew}
                   >
-                    حفظ الشريحة
+                    {savingNew ? (
+                      <>
+                        <Loader2 size={16} className="spin" aria-hidden />
+                        جاري الحفظ…
+                      </>
+                    ) : (
+                      'حفظ الشريحة'
+                    )}
                   </button>
                   <button
                     type="button"
@@ -556,11 +706,26 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
                           <StatusBadge tone={assetTone[s.imageStatus] ?? 'muted'}>
                             {s.imageStatus}
                           </StatusBadge>
+                          {s.imageStoragePath && (
+                            <StatusBadge tone="success" style={{ marginRight: 4 }}>
+                              <Cloud size={10} />
+                            </StatusBadge>
+                          )}
                         </td>
                         <td>
                           <StatusBadge tone={assetTone[s.audioStatus] ?? 'muted'}>
                             {s.audioStatus}
                           </StatusBadge>
+                          {s.audioStoragePath && (
+                            <StatusBadge tone="success" style={{ marginRight: 4 }}>
+                              <Cloud size={10} />
+                            </StatusBadge>
+                          )}
+                          {lastSavedSlideId === s.id && (
+                            <StatusBadge tone="info" style={{ marginRight: 4 }}>
+                              محفوظ
+                            </StatusBadge>
+                          )}
                         </td>
                         <td>
                           <button
@@ -588,6 +753,25 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
             <SectionHeader title="تفاصيل الشريحة" />
             {selectedSlide ? (
               <>
+                {useCloud && (selectedSlide.cloudSaved || selectedSlide.imageStoragePath) ? (
+                  <div className="quran-save-banner" role="status">
+                    <CheckCircle2 size={18} color="#059669" aria-hidden />
+                    <span>
+                      <strong>محفوظة على السحابة</strong>
+                      {selectedSlide.imageStoragePath && (
+                        <span className="text-caption">
+                          {' '}
+                          · صورة: <code>{selectedSlide.imageStoragePath}</code>
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ) : useCloud && selectedHasUploadableMedia ? (
+                  <div className="quran-save-banner quran-save-banner--pending" role="status">
+                    وسائط جاهزة — اضغطي «حفظ على السحابة» لإتمام الرفع.
+                  </div>
+                ) : null}
+
                 <h4 style={{ margin: '0 0 8px', color: trackConfig.accentVar }}>
                   {selectedSlide.title ?? `شريحة ${selectedSlide.slideIndex}`}
                 </h4>
@@ -651,6 +835,28 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
                 <p>
                   <strong>المدة:</strong> {selectedSlide.durationSec} ث
                 </p>
+                {useCloud && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <button
+                      type="button"
+                      className="mock-btn mock-btn--primary"
+                      onClick={handleSaveSelectedSlide}
+                      disabled={
+                        savingSlideId === selectedSlideId ||
+                        (!selectedHasUploadableMedia && !selectedSlide.cloudSaved)
+                      }
+                    >
+                      {savingSlideId === selectedSlideId ? (
+                        <>
+                          <Loader2 size={16} className="spin" aria-hidden />
+                          جاري الحفظ…
+                        </>
+                      ) : (
+                        'حفظ على السحابة'
+                      )}
+                    </button>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                   <Link
                     to={trackConfig.editorSlideLink}

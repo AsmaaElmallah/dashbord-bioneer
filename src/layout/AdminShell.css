@@ -125,6 +125,53 @@
   flex: 1;
 }
 
+.admin-topbar__login-btn,
+.admin-topbar__logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.admin-topbar__auth-loading {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.admin-auth-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(251, 191, 36, 0.15);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.35);
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.admin-auth-banner__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.admin-auth-banner__link:hover {
+  text-decoration: underline;
+}
+
+.admin-nav-link--login {
+  margin-top: 8px;
+  border-top: 1px solid rgba(196, 181, 253, 0.25);
+  padding-top: 12px;
+}
+
 .menu-toggle {
   display: none;
   background: none;
