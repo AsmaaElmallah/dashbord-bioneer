@@ -15,7 +15,6 @@ export function getCategoryMeta(categoryId) {
 export const contentLibraryHubTabs = [
   { id: 'exercises', title: 'الرياضة', appMenuId: 'baby_exercises', hubKind: 'age' },
   { id: 'activities', title: 'الأنشطة', appMenuId: 'activities', hubKind: 'age' },
-  { id: 'library_books', title: 'المكتبة', appMenuId: 'library_books', hubKind: 'media' },
   { id: 'nature', title: 'صوت الطبيعة', appMenuId: 'nature_sounds', hubKind: 'media' },
   { id: 'calm', title: 'موسيقى هادئة', appMenuId: 'calm_music', hubKind: 'media' },
   { id: 'lullabies', title: 'تهويدات', appMenuId: 'lullabies', hubKind: 'media' },

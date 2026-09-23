@@ -2,54 +2,146 @@ import { useEffect, useMemo, useState } from 'react';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { InfoBanner } from '../components/InfoBanner';
-import { MockActionButton } from '../components/MockActionButton';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusBadge } from '../components/StatusBadge';
-import { cmsContentItems, cmsSections } from '../data/mockData';
+import { useSnackbar } from '../context/SnackbarContext';
+import {
+  CMS_SECTIONS,
+  fetchCmsArticles,
+  publishCmsArticle,
+  upsertCmsArticle,
+} from '../services/supabase/cmsService';
 
 const statusTone = {
   منشور: 'success',
   مسودة: 'muted',
-  'يحتاج مراجعة': 'warning',
+  'قيد المراجعة': 'warning',
+  مؤرشف: 'muted',
 };
 
+function emptyDraft(sectionId) {
+  const id = `cms_${sectionId}_${Date.now()}`;
+  return {
+    id,
+    slug: id,
+    title: '',
+    body: '',
+    sectionId,
+    sortOrder: 0,
+    publishStatus: 'مسودة',
+    subtitle: '',
+  };
+}
+
 export function CmsPage() {
-  const [sectionId, setSectionId] = useState('curriculum');
+  const { showMock } = useSnackbar();
+  const showError = showMock;
+  const [sectionId, setSectionId] = useState('parent_culture');
+  const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [draft, setDraft] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error, offline } = await fetchCmsArticles();
+    setLoading(false);
+    if (offline) {
+      showError('Supabase غير مفعّل');
+      setItems([]);
+      return;
+    }
+    if (error) {
+      showError(error.message ?? 'تعذّر تحميل CMS');
+      setItems([]);
+      return;
+    }
+    setItems(data ?? []);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
 
   const sectionItems = useMemo(
-    () => cmsContentItems.filter((i) => i.sectionId === sectionId),
-    [sectionId],
+    () => items.filter((i) => i.sectionId === sectionId),
+    [items, sectionId],
   );
-
-  const selected = sectionItems.find((i) => i.id === selectedId) ?? sectionItems[0] ?? null;
 
   useEffect(() => {
     if (sectionItems.length > 0) {
       setSelectedId(sectionItems[0].id);
     } else {
       setSelectedId(null);
+      setDraft(null);
     }
   }, [sectionId, sectionItems]);
 
   useEffect(() => {
-    if (selected) setDraft({ ...selected });
-    else setDraft(null);
-  }, [selected?.id]);
+    const selected = sectionItems.find((i) => i.id === selectedId) ?? null;
+    if (selected) {
+      setDraft({ ...selected, subtitle: selected.slug ?? '' });
+    }
+  }, [selectedId, sectionItems]);
 
   const updateDraft = (field, value) => {
     setDraft((d) => (d ? { ...d, [field]: value } : d));
   };
 
+  const handleNew = () => {
+    const d = emptyDraft(sectionId);
+    setDraft(d);
+    setSelectedId(d.id);
+  };
+
+  const handleSave = async () => {
+    if (!draft?.title?.trim()) {
+      showError('أدخلي عنواناً');
+      return;
+    }
+    setSaving(true);
+    const payload = {
+      ...draft,
+      slug: draft.subtitle?.trim() || draft.slug || draft.id,
+      publishStatus: draft.publishStatus || 'مسودة',
+    };
+    const { error } = await upsertCmsArticle(payload);
+    setSaving(false);
+    if (error) {
+      showError(error.message ?? 'تعذّر الحفظ');
+      return;
+    }
+    showMock('تم الحفظ على السحابة');
+    await load();
+    setSelectedId(payload.id);
+  };
+
+  const handlePublish = async () => {
+    if (!draft?.id) return;
+    setSaving(true);
+    await upsertCmsArticle({ ...draft, publishStatus: 'منشور' });
+    const { error } = await publishCmsArticle(draft.id);
+    setSaving(false);
+    if (error) {
+      showError(error.message ?? 'تعذّر النشر');
+      return;
+    }
+    showMock('تم النشر للتطبيق');
+    await load();
+  };
+
   return (
     <div className="page-stack">
       <PageHeader title="إدارة المحتوى الثابت (CMS)" />
+      <InfoBanner tone="info">
+        الأقسام: ثقافة الأمهات · الثقافة الصحية · كيف أدرّس — تُحفظ في جدول cms_articles وتنشر للتطبيق.
+      </InfoBanner>
 
       <div className="cms-layout">
         <aside className="cms-sidebar">
-          {cmsSections.map((s) => (
+          {CMS_SECTIONS.map((s) => (
             <button
               key={s.id}
               type="button"
@@ -64,47 +156,58 @@ export function CmsPage() {
         <div className="cms-main">
           <AdminCard>
             <SectionHeader
-              title={cmsSections.find((s) => s.id === sectionId)?.label ?? 'المحتوى'}
+              title={CMS_SECTIONS.find((s) => s.id === sectionId)?.label ?? 'المحتوى'}
+              action={
+                <button type="button" className="btn btn--primary" onClick={handleNew}>
+                  مقالة جديدة
+                </button>
+              }
             />
-            <AdminTableContainer style={{ maxHeight: 200 }}>
-              <table className="admin-table admin-table--compact">
-                <thead>
-                  <tr>
-                    <th>العنوان</th>
-                    <th>النوع</th>
-                    <th>اللغة</th>
-                    <th>آخر تعديل</th>
-                    <th>الحالة</th>
-                    <th>يظهر عند</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sectionItems.map((item) => (
-                    <tr
-                      key={item.id}
-                      className={selectedId === item.id ? 'selected' : ''}
-                      onClick={() => setSelectedId(item.id)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <td style={{ maxWidth: 160 }}>{item.title}</td>
-                      <td>{item.contentType}</td>
-                      <td>{item.language}</td>
-                      <td>{item.lastModified}</td>
-                      <td>
-                        <StatusBadge tone={statusTone[item.status]}>{item.status}</StatusBadge>
-                      </td>
-                      <td style={{ fontSize: '0.72rem' }}>{item.showsWhen}</td>
+            {loading ? (
+              <p>جاري التحميل من Supabase…</p>
+            ) : (
+              <AdminTableContainer style={{ maxHeight: 200 }}>
+                <table className="admin-table admin-table--compact">
+                  <thead>
+                    <tr>
+                      <th>العنوان</th>
+                      <th>Slug</th>
+                      <th>الحالة</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </AdminTableContainer>
+                  </thead>
+                  <tbody>
+                    {sectionItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={3}>لا مقالات في هذا القسم بعد</td>
+                      </tr>
+                    ) : (
+                      sectionItems.map((item) => (
+                        <tr
+                          key={item.id}
+                          className={selectedId === item.id ? 'selected' : ''}
+                          onClick={() => setSelectedId(item.id)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td style={{ maxWidth: 160 }}>{item.title}</td>
+                          <td>{item.slug}</td>
+                          <td>
+                            <StatusBadge tone={statusTone[item.publishStatus]}>
+                              {item.publishStatus}
+                            </StatusBadge>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </AdminTableContainer>
+            )}
           </AdminCard>
 
           {draft && (
             <div className="grid-2 cms-editor-row">
               <AdminCard>
-                <SectionHeader title="محرر (شكلي)" />
+                <SectionHeader title="محرر" />
                 <label className="cms-field">
                   العنوان
                   <input
@@ -114,10 +217,10 @@ export function CmsPage() {
                   />
                 </label>
                 <label className="cms-field">
-                  العنوان الفرعي
+                  العنوان الفرعي / slug
                   <input
                     type="text"
-                    value={draft.subtitle}
+                    value={draft.subtitle ?? draft.slug ?? ''}
                     onChange={(e) => updateDraft('subtitle', e.target.value)}
                   />
                 </label>
@@ -129,39 +232,23 @@ export function CmsPage() {
                     onChange={(e) => updateDraft('body', e.target.value)}
                   />
                 </label>
-                <label className="cms-field">
-                  الوسوم (Tags)
-                  <input
-                    type="text"
-                    value={draft.tags.join('، ')}
-                    onChange={(e) =>
-                      updateDraft(
-                        'tags',
-                        e.target.value.split(/،|,/).map((t) => t.trim()).filter(Boolean),
-                      )
-                    }
-                  />
-                </label>
-                <label className="cms-field">
-                  الجمهور المستهدف
-                  <input
-                    type="text"
-                    value={draft.targetAudience}
-                    onChange={(e) => updateDraft('targetAudience', e.target.value)}
-                  />
-                </label>
-                <label className="cms-field">
-                  مكان الظهور
-                  <input
-                    type="text"
-                    value={draft.placement}
-                    onChange={(e) => updateDraft('placement', e.target.value)}
-                  />
-                </label>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                  <MockActionButton action="save">حفظ مسودة</MockActionButton>
-                  <MockActionButton variant="outline">معاينة</MockActionButton>
-                  <MockActionButton variant="secondary" action="publish">نشر</MockActionButton>
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    disabled={saving}
+                    onClick={handleSave}
+                  >
+                    {saving ? 'جاري الحفظ…' : 'حفظ على السحابة'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--secondary"
+                    disabled={saving}
+                    onClick={handlePublish}
+                  >
+                    نشر للتطبيق
+                  </button>
                 </div>
               </AdminCard>
 
@@ -187,16 +274,6 @@ export function CmsPage() {
                   >
                     {draft.body}
                   </div>
-                  <p style={{ marginTop: 16, fontSize: '0.8rem' }}>
-                    {draft.tags.map((t) => (
-                      <span key={t} className="page-header__chip" style={{ marginLeft: 6 }}>
-                        #{t}
-                      </span>
-                    ))}
-                  </p>
-                  <p className="text-caption" style={{ marginTop: 12 }}>
-                    يظهر عند: {draft.showsWhen}
-                  </p>
                 </article>
               </AdminCard>
             </div>

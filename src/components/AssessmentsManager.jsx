@@ -22,6 +22,12 @@ import {
   loadAdminState,
   saveAdminState,
 } from '../utils/adminLocalStorage';
+import {
+  loadAssessmentsState,
+  publishAssessment,
+  upsertAssessmentQuestion,
+  upsertAssessmentTest,
+} from '../services/supabase/assessmentsService';
 
 const tabs = [
   ['tests', 'الاختبارات'],
@@ -36,7 +42,7 @@ const emptyTestDraft = () => ({
   status: 'نشط',
 });
 
-const emptyQuestionDraft = (testId = 'aptitude_0_2') => ({
+const emptyQuestionDraft = (testId = 'skills_test') => ({
   testId,
   text: '',
   category: 'عام',
@@ -46,10 +52,12 @@ const emptyQuestionDraft = (testId = 'aptitude_0_2') => ({
 
 export function AssessmentsManager() {
   const { showMock } = useSnackbar();
+  const showError = showMock;
   const [tab, setTab] = useState('questions');
   const [state, setState] = useState(() =>
     loadAdminState(ADMIN_STORAGE_KEYS.assessments, buildInitialAssessmentState),
   );
+  const [cloudReady, setCloudReady] = useState(false);
   const [selectedQuestionId, setSelectedQuestionId] = useState(null);
   const [selectedTestId, setSelectedTestId] = useState(null);
   const [filterTest, setFilterTest] = useState('all');
@@ -61,8 +69,44 @@ export function AssessmentsManager() {
   const [editingQuestion, setEditingQuestion] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { state: remote, error, offline } = await loadAssessmentsState();
+      if (cancelled) return;
+      if (offline) {
+        setCloudReady(false);
+        return;
+      }
+      if (error) {
+        showError(error.message ?? 'تعذّر تحميل التقييمات من السحابة');
+        setCloudReady(false);
+        return;
+      }
+      if (remote && (remote.tests.length > 0 || remote.questions.length > 0)) {
+        setState(remote);
+      }
+      setCloudReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showError]);
+
+  useEffect(() => {
     saveAdminState(ADMIN_STORAGE_KEYS.assessments, state);
   }, [state]);
+
+  const syncToCloud = async (nextState) => {
+    if (!cloudReady) return;
+    for (const t of nextState.tests) {
+      const { error } = await upsertAssessmentTest(t);
+      if (error) showError(error.message);
+    }
+    for (const q of nextState.questions) {
+      const { error } = await upsertAssessmentQuestion(q);
+      if (error) showError(error.message);
+    }
+  };
 
   const tests = state.tests;
   const questions = state.questions;
@@ -76,19 +120,22 @@ export function AssessmentsManager() {
     questions.find((q) => q.id === selectedQuestionId) ?? filteredQuestions[0] ?? null;
   const selectedTest = tests.find((t) => t.id === selectedTestId) ?? tests[0] ?? null;
 
-  const handleAddTest = () => {
+  const handleAddTest = async () => {
     const result = createAssessmentTest(tests, testDraft);
     if (result.error) {
       showMock(result.error);
       return;
     }
-    setState((prev) => ({
-      ...prev,
-      tests: syncTestQuestionCounts([...prev.tests, result.test], prev.questions),
-    }));
+    const next = {
+      ...state,
+      tests: syncTestQuestionCounts([...tests, result.test], questions),
+    };
+    setState(next);
+    await syncToCloud(next);
+    if (cloudReady) await publishAssessment(result.test.id);
     setShowAddTest(false);
     setTestDraft(emptyTestDraft());
-    showMock('تمت إضافة الاختبار');
+    showMock(cloudReady ? 'تمت إضافة الاختبار على السحابة' : 'تمت إضافة الاختبار محلياً');
   };
 
   const handleDeleteTest = (testId) => {
@@ -101,39 +148,43 @@ export function AssessmentsManager() {
     showMock('حذف اختبار');
   };
 
-  const handleSaveTestEdit = () => {
+  const handleSaveTestEdit = async () => {
     if (!selectedTest) return;
     const newName = testDraft.name.trim();
-    setState((prev) => ({
-      tests: updateAssessmentTest(prev.tests, selectedTest.id, {
+    const next = {
+      tests: updateAssessmentTest(tests, selectedTest.id, {
         name: newName,
         description: testDraft.description.trim(),
         ageRange: testDraft.ageRange.trim(),
         showsIn: testDraft.showsIn.trim(),
         status: testDraft.status,
       }),
-      questions: prev.questions.map((q) =>
+      questions: questions.map((q) =>
         q.testId === selectedTest.id ? { ...q, testName: newName } : q,
       ),
-    }));
+    };
+    setState(next);
+    await syncToCloud(next);
     setEditingTest(false);
-    showMock('تحديث الاختبار');
+    showMock(cloudReady ? 'تحديث الاختبار على السحابة' : 'تحديث الاختبار');
   };
 
-  const handleAddQuestion = () => {
+  const handleAddQuestion = async () => {
     const result = createAssessmentQuestion(questions, tests, questionDraft);
     if (result.error) {
       showMock(result.error);
       return;
     }
-    setState((prev) => ({
-      tests: syncTestQuestionCounts(prev.tests, result.questions),
+    const next = {
+      tests: syncTestQuestionCounts(tests, result.questions),
       questions: result.questions,
-    }));
+    };
+    setState(next);
+    await syncToCloud(next);
     setSelectedQuestionId(result.question.id);
     setShowAddQuestion(false);
     setQuestionDraft(emptyQuestionDraft(questionDraft.testId));
-    showMock('إضافة سؤال');
+    showMock(cloudReady ? 'إضافة سؤال على السحابة' : 'إضافة سؤال');
   };
 
   const handleDeleteQuestion = (id) => {
@@ -147,7 +198,7 @@ export function AssessmentsManager() {
     showMock('حذف سؤال');
   };
 
-  const handleSaveQuestionEdit = () => {
+  const handleSaveQuestionEdit = async () => {
     if (!selectedQuestion) return;
     const nextQuestions = updateAssessmentQuestion(questions, tests, selectedQuestion.id, {
       testId: questionDraft.testId,
@@ -156,12 +207,14 @@ export function AssessmentsManager() {
       age: questionDraft.age.trim(),
       answerType: questionDraft.answerType,
     });
-    setState((prev) => ({
-      tests: syncTestQuestionCounts(prev.tests, nextQuestions),
+    const next = {
+      tests: syncTestQuestionCounts(tests, nextQuestions),
       questions: nextQuestions,
-    }));
+    };
+    setState(next);
+    await syncToCloud(next);
     setEditingQuestion(false);
-    showMock('تحديث السؤال');
+    showMock(cloudReady ? 'تحديث السؤال على السحابة' : 'تحديث السؤال');
   };
 
   const startEditTest = (t) => {

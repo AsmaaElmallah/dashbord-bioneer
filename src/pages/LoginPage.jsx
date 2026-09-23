@@ -1,166 +1,141 @@
-import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight, Lock, Mail } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { isSupabaseConfigured, isSupabaseEnabled, supabase } from '../lib/supabaseClient';
-import './LoginPage.css';
-
-function LoginLayout({ children, title, description }) {
-  return (
-    <div className="login-page">
-      <div className="login-page__orb login-page__orb--1" aria-hidden />
-      <div className="login-page__orb login-page__orb--2" aria-hidden />
-      <div className="login-page__orb login-page__orb--3" aria-hidden />
-
-      <div className="login-page__inner">
-        <div className="login-page__brand">
-          <div className="login-page__logo" aria-hidden>
-            ب
-          </div>
-          <h1 className="login-page__brand-name">بيانور</h1>
-          <p className="login-page__brand-tag">لوحة تحكم المحتوى التعليمي</p>
-        </div>
-
-        <div className="login-page__card">
-          <h2 className="login-page__card-title">{title}</h2>
-          {description && <p className="login-page__card-desc">{description}</p>}
-          {children}
-        </div>
-
-        <Link to="/" className="login-page__back">
-          <ArrowRight size={16} aria-hidden />
-          العودة للوحة التحكم
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function translateAuthError(message) {
-  const m = message?.toLowerCase() ?? '';
-  if (m.includes('invalid login credentials')) return 'البريد أو كلمة المرور غير صحيحة.';
-  if (m.includes('email not confirmed')) return 'يرجى تأكيد البريد من رابط Supabase أولاً.';
-  if (m.includes('too many requests')) return 'محاولات كثيرة — انتظري دقيقة ثم أعيدي المحاولة.';
-  return message;
-}
+import { useState } from 'react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { LogIn } from 'lucide-react';
+import { AdminCard } from '../components/AdminCard';
+import { useAuth, isSupabaseEnabled } from '../context/AuthContext';
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isLoggedIn, loading: authLoading } = useAuth();
-  const from = location.state?.from ?? '/';
-
+  const { isLoggedIn, loading } = useAuth();
+  const redirectTo = location.state?.from ?? '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && isLoggedIn) {
-      navigate(from, { replace: true });
-    }
-  }, [authLoading, isLoggedIn, from, navigate]);
-
-  if (!isSupabaseConfigured) {
+  if (loading) {
     return (
-      <LoginLayout
-        title="تسجيل الدخول"
-        description="إعداد Supabase غير مكتمل بعد."
-      >
-        <p className="login-page__hint">
-          انسخي <code>.env.example</code> إلى <code>.env</code> وأضيفي مفاتيح المشروع، ثم فعّلي{' '}
-          <code>VITE_USE_SUPABASE=true</code>.
-        </p>
-      </LoginLayout>
+      <div className="login-page">
+        <p className="text-caption">جاري التحقق من الجلسة…</p>
+      </div>
     );
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  if (isLoggedIn) {
+    return <Navigate to={redirectTo} replace />;
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
-    setLoading(true);
 
-    const { error: signError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    setLoading(false);
-
-    if (signError) {
-      setError(translateAuthError(signError.message));
+    if (!isSupabaseEnabled || !supabase) {
+      setError('Supabase غير مفعّل — أضف .env وفعّل VITE_USE_SUPABASE=true');
       return;
     }
 
-    navigate(from, { replace: true });
+    setSubmitting(true);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (signInError) {
+        setError(translateLoginError(signInError.message));
+        return;
+      }
+
+      navigate(redirectTo, { replace: true });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (authLoading) {
-    return (
-      <LoginLayout title="جاري التحقق…" description="نتحقق من جلستك الحالية.">
-        <button type="button" className="login-page__submit" disabled>
-          انتظري لحظة…
-        </button>
-      </LoginLayout>
-    );
-  }
-
   return (
-    <LoginLayout
-      title="دخول الأدمن"
-      description="أدخلي بيانات حسابك المصرّح له في Supabase (صلاحية admin أو editor)."
-    >
-      <form onSubmit={handleSubmit} className="login-page__form">
-        <div className="login-page__field">
-          <label htmlFor="login-email">البريد الإلكتروني</label>
-          <div className="login-page__input-wrap">
-            <Mail size={18} aria-hidden />
-            <input
-              id="login-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
-              required
-              autoComplete="email"
-              autoFocus
-            />
-          </div>
+    <div className="login-page">
+      <AdminCard className="login-page__card">
+        <div className="login-page__brand">
+          <div className="admin-avatar login-page__avatar">ب</div>
+          <h1 className="text-title">بيانور — لوحة التحكم</h1>
+          <p className="text-caption">سجّلي الدخول لإدارة المحتوى على Supabase</p>
         </div>
 
-        <div className="login-page__field">
-          <label htmlFor="login-password">كلمة المرور</label>
-          <div className="login-page__input-wrap">
-            <Lock size={18} aria-hidden />
-            <input
-              id="login-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="login-page__error" role="alert">
-            <AlertCircle size={18} aria-hidden />
-            <span>{error}</span>
-          </div>
+        {!isSupabaseConfigured && (
+          <p className="login-page__warn" role="alert">
+            أضيفي <code>VITE_SUPABASE_URL</code> و <code>VITE_SUPABASE_ANON_KEY</code> في ملف{' '}
+            <code>.env</code>
+          </p>
         )}
 
-        <button type="submit" className="login-page__submit" disabled={loading}>
-          {loading ? 'جاري الدخول…' : 'تسجيل الدخول'}
-        </button>
-      </form>
+        {isSupabaseConfigured && !isSupabaseEnabled && (
+          <p className="login-page__warn" role="alert">
+            Supabase مُعدّ لكن معطّل — غيّري <code>VITE_USE_SUPABASE=true</code> في <code>.env</code>
+          </p>
+        )}
 
-      {!isSupabaseEnabled && (
-        <div className="login-page__footer">
-          <p className="login-page__hint">يمكنكِ متابعة العمل في الوضع المحلي بدون سحابة.</p>
-        </div>
-      )}
-    </LoginLayout>
+        <form className="login-page__form" onSubmit={handleSubmit}>
+          <label className="cms-field">
+            <span>البريد الإلكتروني</span>
+            <input
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={submitting}
+            />
+          </label>
+
+          <label className="cms-field">
+            <span>كلمة المرور</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={submitting}
+            />
+          </label>
+
+          {error ? (
+            <p className="login-page__error" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <button
+            type="submit"
+            className="mock-btn mock-btn--primary login-page__submit"
+            disabled={submitting || !isSupabaseEnabled}
+          >
+            <LogIn size={18} aria-hidden />
+            {submitting ? 'جاري الدخول…' : 'تسجيل الدخول'}
+          </button>
+        </form>
+
+        <p className="text-caption login-page__hint">
+          حساب الأدمن يُنشأ من Supabase Auth ثم <code>role = admin</code> في جدول profiles.
+        </p>
+
+        <Link to="/" className="login-page__back">
+          العودة للوحة (وضع محلي)
+        </Link>
+      </AdminCard>
+    </div>
   );
+}
+
+function translateLoginError(message) {
+  const m = message?.toLowerCase() ?? '';
+  if (m.includes('invalid login credentials')) {
+    return 'البريد أو كلمة المرور غير صحيحة.';
+  }
+  if (m.includes('email not confirmed')) {
+    return 'يرجى تأكيد البريد الإلكتروني أولاً.';
+  }
+  return message ?? 'تعذّر تسجيل الدخول.';
 }

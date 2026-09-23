@@ -39,6 +39,7 @@ import { ContentInventoryPage } from './pages/ContentInventoryPage';
 import { ImageContentEditorPage } from './pages/ImageContentEditorPage';
 import { AudioContentEditorPage } from './pages/AudioContentEditorPage';
 import { LoginPage } from './pages/LoginPage';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
   return (
@@ -47,7 +48,14 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<AdminShell />}>
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <AdminShell />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<OverviewPage />} />
             <Route path="content-studio" element={<ContentStudioPage />} />
             <Route path="content-studio/new" element={<ContentWizardPage />} />

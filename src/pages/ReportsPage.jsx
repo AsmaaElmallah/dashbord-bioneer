@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { InfoBanner } from '../components/InfoBanner';
@@ -6,6 +6,9 @@ import { MockActionButton } from '../components/MockActionButton';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatCard } from '../components/StatCard';
+import { useSnackbar } from '../context/SnackbarContext';
+import { isSupabaseEnabled } from '../lib/supabaseClient';
+import { fetchSubscriptionReport } from '../services/supabase/reportsService';
 import {
   reportsCurriculumPerformance,
   reportsKpis,
@@ -18,9 +21,26 @@ import {
 } from '../data/mockData';
 
 export function ReportsPage() {
+  const { showMock } = useSnackbar();
   const [period, setPeriod] = useState('7');
   const [ageFilter, setAgeFilter] = useState('all');
   const [planFilter, setPlanFilter] = useState('all');
+  const [subReport, setSubReport] = useState(null);
+
+  useEffect(() => {
+    if (!isSupabaseEnabled) return undefined;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await fetchSubscriptionReport();
+      if (!cancelled) {
+        if (data) setSubReport(data);
+        if (error) showMock('تعذّر تحميل تقرير الاشتراكات');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showMock]);
 
   const weekly = useMemo(() => {
     const factor = period === '30' ? 1.15 : 1;
@@ -31,13 +51,23 @@ export function ReportsPage() {
   }, [period]);
 
   const maxWeekly = Math.max(...weekly.map((w) => w.val));
+  const subRows = subReport?.rows ?? reportsSubscriptionPerformance.map((r) => ({
+    plan: r.plan,
+    active: r.active,
+    churn: r.churn,
+  }));
 
   return (
     <div className="page-stack">
-      <PageHeader title="التقارير والتحليلات" />
+      <PageHeader
+        title="التقارير والتحليلات"
+        extraBadges={isSupabaseEnabled && subReport ? ['اشتراكات من Supabase'] : ['mock data']}
+      />
 
       <InfoBanner tone="info">
-        بيانات mock — لا analytics SDK ولا Backend. الرسوم CSS فقط (بدون Chart.js).
+        {isSupabaseEnabled && subReport
+          ? `أداء الاشتراكات من قاعدة البيانات — ${subReport.mrrHint}. باقي المقاييس mock حتى analytics.`
+          : 'بيانات mock — لا analytics SDK. الرسوم CSS فقط.'}
       </InfoBanner>
 
       <div className="filters-row">
@@ -126,18 +156,23 @@ export function ReportsPage() {
       <div className="grid-2">
         <AdminCard>
           <SectionHeader title="أداء الاشتراكات" />
+          {subReport && (
+            <p className="text-caption" style={{ marginTop: 0 }}>
+              إجمالي نشط: <strong>{subReport.activeTotal}</strong>
+            </p>
+          )}
           <AdminTableContainer>
             <table className="admin-table admin-table--compact">
               <thead>
                 <tr>
                   <th>الباقة</th>
                   <th>نشط</th>
-                  <th>إلغاء mock</th>
+                  <th>منته/ملغى</th>
                 </tr>
               </thead>
               <tbody>
-                {reportsSubscriptionPerformance.map((r) => (
-                  <tr key={r.plan}>
+                {subRows.map((r) => (
+                  <tr key={r.planId || r.plan}>
                     <td>{r.plan}</td>
                     <td>{r.active}</td>
                     <td>{r.churn}</td>

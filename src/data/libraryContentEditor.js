@@ -1,9 +1,6 @@
 import { contentWizardPlans, libraryMediaItems, libraryTabs, mediaAgeGroups } from './mockData';
 
-export const libraryEditorCategories = [
-  ...libraryTabs.filter((t) => t.id !== 'review'),
-  { id: 'library_books', title: 'المكتبة' },
-];
+export const libraryEditorCategories = libraryTabs.filter((t) => t.id !== 'review');
 
 export const natureChipOptions = [
   { id: 'rain', label: 'مطر' },

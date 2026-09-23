@@ -1,121 +1,82 @@
-import { buildInitialContentLibraryState } from '../../data/contentLibraryAdmin';
+import {
+  contentLibraryHubTabs,
+  getCategoryMeta,
+} from '../../data/contentLibraryAdmin';
 import { isSupabaseEnabled, supabase } from '../../lib/supabaseClient';
 
-export function translateLibrarySaveError(message) {
-  const m = message?.toLowerCase() ?? '';
-  if (m.includes('row-level security') || m.includes('permission denied')) {
-    return 'لا صلاحية — سجّلي الدخول وتأكدي أن دورك admin أو editor.';
-  }
-  if (m.includes('foreign key') || m.includes('group_id')) {
-    return 'فئة العمر غير موجودة في Supabase — حدّثي الصفحة لإعادة مزامنة المجموعات.';
-  }
-  if (m.includes('jwt') || m.includes('not authenticated')) {
-    return 'انتهت الجلسة — سجّلي الدخول ثم أعيدي الحفظ.';
-  }
-  return message;
-}
+const LIBRARY_TABLE = 'library_items';
+const AGE_GROUPS_TABLE = 'age_hub_groups';
+const AGE_ITEMS_TABLE = 'age_hub_items';
 
-const MEDIA_CATEGORIES = new Set(['nature', 'calm', 'lullabies']);
-const APP_MENU_BY_CATEGORY = {
-  nature: 'nature_sounds',
-  calm: 'calm_music',
-  lullabies: 'lullabies',
-  library_books: 'library_books',
+const PUBLISH_TO_DB = {
+  منشور: 'published',
+  published: 'published',
+  مسودة: 'draft',
+  draft: 'draft',
+  'قيد المراجعة': 'review',
+  review: 'review',
+  مؤرشف: 'archived',
+  archived: 'archived',
 };
 
-const TABLE = 'library_items';
-const GROUPS_TABLE = 'age_hub_groups';
-const HUB_ITEMS_TABLE = 'age_hub_items';
+const PUBLISH_FROM_DB = {
+  published: 'منشور',
+  draft: 'مسودة',
+  review: 'قيد المراجعة',
+  archived: 'مؤرشف',
+};
 
-function rowToAdminItem(row) {
+function publishToDb(value) {
+  return PUBLISH_TO_DB[value] ?? 'draft';
+}
+
+function publishFromDb(value) {
+  return PUBLISH_FROM_DB[value] ?? 'مسودة';
+}
+
+function tabMeta(tabId) {
+  return contentLibraryHubTabs.find((t) => t.id === tabId);
+}
+
+export function rowToMediaItem(row) {
+  const cat = getCategoryMeta(row.category_id);
   return {
     id: row.id,
     categoryId: row.category_id,
-    categoryTitle: row.category_id,
+    categoryTitle: cat.title,
     title: row.title,
     videoId: row.video_id,
     playlistId: row.playlist_id,
     duration: row.duration_label ?? '—',
     moodTag: row.mood_tag ?? '—',
     natureChip: row.nature_chip,
-    itemType: row.item_type,
+    itemType: row.item_type ?? 'video',
     linkStatus: row.link_status ?? 'سليم',
-    publishStatus: mapPublishToArabic(row.publish_status),
-    showsWhen: row.app_menu_id ?? row.category_id,
+    publishStatus: publishFromDb(row.publish_status),
+    showsWhen: `المكتبة > ${cat.title}`,
   };
 }
 
-function mapPublishToArabic(status) {
-  const map = {
-    draft: 'مسودة',
-    review: 'يحتاج مراجعة',
-    published: 'منشور',
-    archived: 'مؤرشف',
-  };
-  return map[status] ?? status;
-}
+export function adminItemToRow(item, tabId) {
+  const meta = tabMeta(tabId);
+  const videoId = item.videoId?.trim() || null;
+  const playlistId = item.playlistId?.trim() || null;
 
-function mapPublishToDb(arabicOrEn) {
-  const map = {
-    مسودة: 'draft',
-    'يحتاج مراجعة': 'review',
-    منشور: 'published',
-    مؤرشف: 'archived',
-    draft: 'draft',
-    review: 'review',
-    published: 'published',
-    archived: 'archived',
-  };
-  return map[arabicOrEn] ?? 'draft';
-}
-
-export function adminItemToRow(item, categoryId) {
-  const cat = categoryId ?? item.categoryId;
   return {
     id: item.id,
-    category_id: cat,
+    category_id: tabId,
     title: item.title,
-    video_id: item.videoId || null,
-    playlist_id: item.playlistId || null,
+    video_id: videoId,
+    playlist_id: playlistId,
     duration_label: item.duration ?? '—',
     mood_tag: item.moodTag ?? '—',
-    nature_chip: item.natureChip ?? null,
-    item_type: item.itemType ?? (item.playlistId ? 'playlist' : 'video'),
+    nature_chip: tabId === 'nature' ? item.natureChip ?? null : null,
+    item_type: item.itemType ?? (playlistId && !videoId ? 'playlist' : 'video'),
     link_status: item.linkStatus ?? 'سليم',
-    publish_status: mapPublishToDb(item.publishStatus),
     hub_kind: 'media',
-    app_menu_id: item.appMenuId ?? APP_MENU_BY_CATEGORY[cat] ?? null,
-  };
-}
-
-/** دمج بيانات Supabase في شكل state المحلي للوحة */
-export function hydrateContentLibraryState(mediaItems, hubState) {
-  const base = buildInitialContentLibraryState();
-  const items = mediaItems ?? [];
-
-  return {
-    ...base,
-    mediaItems: items.filter((i) => MEDIA_CATEGORIES.has(i.categoryId)),
-    libraryBooksItems: items.filter((i) => i.categoryId === 'library_books'),
-    exerciseGroups:
-      hubState?.exerciseGroups?.length > 0 ? hubState.exerciseGroups : base.exerciseGroups,
-    activityGroups:
-      hubState?.activityGroups?.length > 0 ? hubState.activityGroups : base.activityGroups,
-  };
-}
-
-export function ageHubItemToRow(item, groupId, sortOrder = 0) {
-  const itemType = item.playlistId && !item.videoId ? 'playlist' : 'video';
-  return {
-    id: item.id,
-    group_id: groupId,
-    title: item.title,
-    video_id: item.videoId || null,
-    playlist_id: item.playlistId || null,
-    mood_tag: item.moodTag ?? '—',
-    item_type: itemType,
-    sort_order: sortOrder,
-    publish_status: item.publishStatus === 'منشور' ? 'published' : 'draft',
+    app_menu_id: meta?.appMenuId ?? null,
+    sort_order: item.sortOrder ?? 0,
+    publish_status: publishToDb(item.publishStatus ?? 'منشور'),
   };
 }
 
@@ -131,168 +92,171 @@ export function ageHubGroupToRow(group, hubType, sortOrder) {
   };
 }
 
-/** أول تشغيل: رفع مجموعات وعناصر mock إلى Supabase إن كانت فارغة */
-export async function ensureAgeHubCatalogSeeded() {
-  if (!isSupabaseEnabled || !supabase) return { error: null };
+export function ageHubItemToRow(item, groupId, sortOrder) {
+  const videoId = item.videoId?.trim() || null;
+  const playlistId = item.playlistId?.trim() || null;
 
-  const { count, error: countErr } = await supabase
-    .from(GROUPS_TABLE)
-    .select('*', { count: 'exact', head: true })
-    .eq('hub_type', 'exercises');
-
-  if (countErr) return { error: countErr };
-  if (count && count > 0) return { error: null };
-
-  const base = buildInitialContentLibraryState();
-  const seedEx = await seedAgeHubType(base.exerciseGroups, 'exercises');
-  if (seedEx.error) return seedEx;
-  return seedAgeHubType(base.activityGroups, 'activities');
+  return {
+    id: item.id,
+    group_id: groupId,
+    title: item.title,
+    video_id: videoId,
+    playlist_id: playlistId,
+    mood_tag: item.moodTag ?? '—',
+    item_type: playlistId && !videoId ? 'playlist' : 'video',
+    sort_order: sortOrder,
+    publish_status: publishToDb(item.publishStatus ?? 'منشور'),
+  };
 }
 
-async function seedAgeHubType(groups, hubType) {
-  for (let gi = 0; gi < groups.length; gi += 1) {
-    const group = groups[gi];
-    const { error: gErr } = await upsertAgeHubGroup(ageHubGroupToRow(group, hubType, gi));
-    if (gErr) return { error: gErr };
+function rowToAgeHubItem(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    videoId: row.video_id,
+    playlistId: row.playlist_id,
+    moodTag: row.mood_tag ?? '—',
+    publishStatus: publishFromDb(row.publish_status),
+  };
+}
 
-    for (let ii = 0; ii < group.items.length; ii += 1) {
-      const { error: iErr } = await upsertAgeHubItem(ageHubItemToRow(group.items[ii], group.id, ii));
-      if (iErr) return { error: iErr };
+function buildAgeHubGroups(groupRows, itemRows, hubType) {
+  const groups = groupRows
+    .filter((g) => g.hub_type === hubType)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((g) => ({
+      id: g.id,
+      title: g.title,
+      subtitle: g.subtitle ?? '',
+      parentNote: g.parent_note ?? '',
+      items: [],
+    }));
+
+  const groupMap = Object.fromEntries(groups.map((g) => [g.id, g]));
+
+  itemRows
+    .filter((item) => groupMap[item.group_id])
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .forEach((item) => {
+      groupMap[item.group_id].items.push(rowToAgeHubItem(item));
+    });
+
+  return groups;
+}
+
+function buildStateFromRows(libraryRows, groupRows, itemRows) {
+  const mediaItems = [];
+  const libraryBooksItems = [];
+
+  libraryRows.forEach((row) => {
+    const item = rowToMediaItem(row);
+    if (row.category_id === 'library_books') {
+      libraryBooksItems.push(item);
+    } else {
+      mediaItems.push(item);
     }
+  });
+
+  return {
+    mediaItems,
+    libraryBooksItems,
+    exerciseGroups: buildAgeHubGroups(groupRows, itemRows, 'exercises'),
+    activityGroups: buildAgeHubGroups(groupRows, itemRows, 'activities'),
+  };
+}
+
+export async function loadContentLibraryState() {
+  if (!isSupabaseEnabled || !supabase) {
+    return { state: null, error: null, offline: true };
   }
-  return { error: null };
+
+  const [libraryRes, groupsRes, itemsRes] = await Promise.all([
+    supabase.from(LIBRARY_TABLE).select('*').order('sort_order'),
+    supabase.from(AGE_GROUPS_TABLE).select('*').order('sort_order'),
+    supabase.from(AGE_ITEMS_TABLE).select('*').order('sort_order'),
+  ]);
+
+  const error = libraryRes.error ?? groupsRes.error ?? itemsRes.error;
+  if (error) return { state: null, error, offline: false };
+
+  const libraryRows = libraryRes.data ?? [];
+  const groupRows = groupsRes.data ?? [];
+  const itemRows = itemsRes.data ?? [];
+
+  if (libraryRows.length === 0 && groupRows.length === 0 && itemRows.length === 0) {
+    return { state: null, error: null, offline: false };
+  }
+
+  return {
+    state: buildStateFromRows(libraryRows, groupRows, itemRows),
+    error: null,
+    offline: false,
+  };
 }
 
-export async function upsertAgeHubGroup(row) {
-  if (!isSupabaseEnabled) return { error: null, offline: true };
-
-  const { error } = await supabase.from(GROUPS_TABLE).upsert(row, { onConflict: 'id' });
-  return { error, offline: false };
-}
-
-export async function upsertAgeHubItem(row) {
-  if (!isSupabaseEnabled) return { data: null, error: null, offline: true };
+export async function upsertLibraryItem(row) {
+  if (!isSupabaseEnabled || !supabase) {
+    return { data: null, error: null, offline: true };
+  }
 
   const { data, error } = await supabase
-    .from(HUB_ITEMS_TABLE)
+    .from(LIBRARY_TABLE)
     .upsert(row, { onConflict: 'id' })
     .select()
     .single();
 
-  if (error) return { data: null, error, offline: false };
-  return {
-    data: data
-      ? {
-          id: data.id,
-          title: data.title,
-          videoId: data.video_id,
-          playlistId: data.playlist_id,
-          moodTag: data.mood_tag,
-        }
-      : null,
-    error: null,
-    offline: false,
-  };
-}
-
-export async function deleteAgeHubItemById(id) {
-  if (!isSupabaseEnabled) return { error: null, offline: true };
-
-  const { error } = await supabase.from(HUB_ITEMS_TABLE).delete().eq('id', id);
-  return { error, offline: false };
-}
-
-/** تحميل كامل للمكتبة من Supabase */
-export async function loadContentLibraryState() {
-  const seedRes = await ensureAgeHubCatalogSeeded();
-  if (seedRes.error) return { state: null, error: seedRes.error };
-
-  const [libRes, hubRes] = await Promise.all([fetchAllLibraryItems(), fetchAgeHubState()]);
-
-  if (libRes.error) return { state: null, error: libRes.error };
-  if (hubRes.error) return { state: null, error: hubRes.error };
-
-  return {
-    state: hydrateContentLibraryState(libRes.data, hubRes),
-    error: null,
-  };
-}
-
-/** جلب كل عناصر المكتبة (للأدمن — يتطلب staff RLS) */
-export async function fetchAllLibraryItems() {
-  if (!isSupabaseEnabled) return { data: null, error: null, offline: true };
-
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .order('category_id')
-    .order('sort_order');
-
-  if (error) return { data: null, error, offline: false };
-  return { data: (data ?? []).map(rowToAdminItem), error: null, offline: false };
-}
-
-export async function upsertLibraryItem(row) {
-  if (!isSupabaseEnabled) return { data: null, error: null, offline: true };
-
-  const { data, error } = await supabase.from(TABLE).upsert(row, { onConflict: 'id' }).select().single();
   return { data, error, offline: false };
 }
 
 export async function deleteLibraryItem(id) {
-  if (!isSupabaseEnabled) return { error: null, offline: true };
+  if (!isSupabaseEnabled || !supabase) {
+    return { error: null, offline: true };
+  }
 
-  const { error } = await supabase.from(TABLE).delete().eq('id', id);
+  const { error } = await supabase.from(LIBRARY_TABLE).delete().eq('id', id);
   return { error, offline: false };
 }
 
-/** مجموعات الرياضة/الأنشطة */
-export async function fetchAgeHubState() {
-  if (!isSupabaseEnabled) {
-    return { exerciseGroups: null, activityGroups: null, error: null, offline: true };
+export async function upsertAgeHubGroup(row) {
+  if (!isSupabaseEnabled || !supabase) {
+    return { error: null, offline: true };
   }
 
-  const { data: groups, error: gErr } = await supabase
-    .from(GROUPS_TABLE)
-    .select('*')
-    .order('sort_order');
+  const { error } = await supabase.from(AGE_GROUPS_TABLE).upsert(row, { onConflict: 'id' });
+  return { error, offline: false };
+}
 
-  if (gErr) {
-    return { exerciseGroups: null, activityGroups: null, error: gErr, offline: false };
+export async function upsertAgeHubItem(row) {
+  if (!isSupabaseEnabled || !supabase) {
+    return { error: null, offline: true };
   }
 
-  const { data: items, error: iErr } = await supabase
-    .from(HUB_ITEMS_TABLE)
-    .select('*')
-    .order('sort_order');
+  const { error } = await supabase.from(AGE_ITEMS_TABLE).upsert(row, { onConflict: 'id' });
+  return { error, offline: false };
+}
 
-  if (iErr) {
-    return { exerciseGroups: null, activityGroups: null, error: iErr, offline: false };
+export async function deleteAgeHubItemById(id) {
+  if (!isSupabaseEnabled || !supabase) {
+    return { error: null, offline: true };
   }
 
-  const byGroup = (type) =>
-    (groups ?? [])
-      .filter((g) => g.hub_type === type)
-      .map((g) => ({
-        id: g.id,
-        title: g.title,
-        subtitle: g.subtitle,
-        parentNote: g.parent_note,
-        items: (items ?? [])
-          .filter((it) => it.group_id === g.id)
-          .map((it) => ({
-            id: it.id,
-            title: it.title,
-            videoId: it.video_id,
-            playlistId: it.playlist_id,
-            moodTag: it.mood_tag,
-          })),
-      }));
+  const { error } = await supabase.from(AGE_ITEMS_TABLE).delete().eq('id', id);
+  return { error, offline: false };
+}
 
-  return {
-    exerciseGroups: byGroup('exercises'),
-    activityGroups: byGroup('activities'),
-    error: null,
-    offline: false,
-  };
+export function translateLibrarySaveError(message) {
+  const m = message?.toLowerCase() ?? '';
+  if (m.includes('row-level security') || m.includes('permission denied')) {
+    return 'لا صلاحية — سجّلي الدخول وتأكدي أن دورك admin أو editor في profiles.';
+  }
+  if (m.includes('duplicate key') || m.includes('unique constraint')) {
+    return 'معرّف العنصر مستخدم مسبقاً.';
+  }
+  if (m.includes('jwt') || m.includes('not authenticated')) {
+    return 'انتهت الجلسة — سجّلي الدخول ثم أعيدي الحفظ.';
+  }
+  if (m.includes('library_items_youtube_check') || m.includes('age_hub_items_youtube_check')) {
+    return 'يجب إدخال videoId أو playlistId قبل الحفظ.';
+  }
+  return message;
 }

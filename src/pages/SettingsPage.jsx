@@ -7,6 +7,7 @@ import { MockActionButton } from '../components/MockActionButton';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusBadge } from '../components/StatusBadge';
+import { useAuth } from '../context/AuthContext';
 import { isSupabaseConfigured, isSupabaseEnabled } from '../lib/supabaseClient';
 import {
   settingsAppInfo,
@@ -19,13 +20,20 @@ import {
   settingsSections,
 } from '../data/mockData';
 
-function supabaseIntegrationStatus() {
+function supabaseIntegrationStatus(isLoggedIn) {
   if (!isSupabaseConfigured) return 'غير مُعدّ — أضف .env';
   if (!isSupabaseEnabled) return 'مُعدّ — عطّل (VITE_USE_SUPABASE=false)';
-  return 'متصل';
+  if (!isLoggedIn) return 'متصل — غير مسجّلة';
+  return 'متصل — مسجّلة الدخول';
+}
+
+function supabaseIntegrationTone(isLoggedIn) {
+  if (!isSupabaseConfigured || !isSupabaseEnabled) return 'warning';
+  return isLoggedIn ? 'success' : 'info';
 }
 
 export function SettingsPage() {
+  const { isLoggedIn } = useAuth();
   const [section, setSection] = useState('general');
   const [general, setGeneral] = useState({
     appName: settingsAppInfo.appName,
@@ -192,8 +200,8 @@ export function SettingsPage() {
                 }}
               >
                 <span>Supabase (قاعدة البيانات + Storage)</span>
-                <StatusBadge tone={isSupabaseEnabled ? 'success' : 'warning'}>
-                  {supabaseIntegrationStatus()}
+                <StatusBadge tone={supabaseIntegrationTone(isLoggedIn)}>
+                  {supabaseIntegrationStatus(isLoggedIn)}
                 </StatusBadge>
               </div>
               {isSupabaseConfigured && (

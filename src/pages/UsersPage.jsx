@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Eye } from 'lucide-react';
 import { MockLoading } from '../components/MockLoading';
 import { ActiveFilters } from '../components/ActiveFilters';
@@ -11,19 +11,22 @@ import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
+import { isSupabaseEnabled } from '../lib/supabaseClient';
+import { fetchAppProfiles, fetchAppChildren } from '../services/supabase/usersService';
 import {
-  children,
+  children as mockChildren,
   followUpProfiles,
   matchesPublishChip,
   publishFilterChips,
   users,
 } from '../data/mockData';
 
-function UserDetailPanel({ user }) {
-  const userChildren = children.filter((c) => c.parentId === user.id);
+function UserDetailPanel({ user, childrenList }) {
+  const userChildren = childrenList.filter((c) => c.parentId === user.id);
   return (
     <>
       <p><strong>البريد:</strong> {user.email}</p>
+      {user.role && <p><strong>الدور:</strong> {user.role}</p>}
       <p><strong>الباقة:</strong> {user.plan} — <StatusBadge tone={user.status === 'نشط' ? 'success' : 'muted'}>{user.status}</StatusBadge></p>
       <p><strong>عدد الأطفال:</strong> {user.childrenCount}</p>
       {userChildren.length > 0 && (
@@ -66,6 +69,35 @@ export function UsersPage() {
   const [tab, setTab] = useState('users');
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [remoteUsers, setRemoteUsers] = useState(null);
+  const [remoteChildren, setRemoteChildren] = useState(null);
+  const userSource = isSupabaseEnabled && remoteUsers ? remoteUsers : users;
+  const children = isSupabaseEnabled && remoteChildren ? remoteChildren : mockChildren;
+
+  useEffect(() => {
+    if (!isSupabaseEnabled) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const [profilesRes, childrenRes] = await Promise.all([
+        fetchAppProfiles(),
+        fetchAppChildren(),
+      ]);
+      if (!cancelled) {
+        if (profilesRes.data) setRemoteUsers(profilesRes.data);
+        if (childrenRes.data) setRemoteChildren(childrenRes.data);
+        if (profilesRes.error || childrenRes.error) {
+          showMock('تعذّر تحميل المستخدمين/الأطفال من Supabase');
+        }
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showMock]);
   const [filterAge, setFilterAge] = useState('all');
   const [filterPlan, setFilterPlan] = useState('all');
   const [filterActivity, setFilterActivity] = useState('all');
@@ -76,14 +108,14 @@ export function UsersPage() {
   const matchesQuery = (text) => !pageQuery.trim() || text.toLowerCase().includes(pageQuery.trim().toLowerCase());
 
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
+    return userSource.filter((u) => {
       if (!matchesPublishChip(u, statusChip)) return false;
       if (filterPlan !== 'all' && u.plan !== filterPlan) return false;
       if (filterActivity !== 'all' && u.lastActiveKey !== filterActivity) return false;
       if (!matchesQuery(`${u.name} ${u.email}`)) return false;
       return true;
     });
-  }, [filterPlan, filterActivity, statusChip, pageQuery]);
+  }, [userSource, filterPlan, filterActivity, statusChip, pageQuery]);
 
   const filteredChildren = useMemo(() => {
     return children.filter((c) => {
@@ -91,13 +123,13 @@ export function UsersPage() {
       if (filterAge !== 'all' && c.ageKey !== filterAge) return false;
       if (filterCurriculum !== 'all' && c.curriculumKey !== filterCurriculum) return false;
       if (filterPlan !== 'all') {
-        const parent = users.find((u) => u.id === c.parentId);
+        const parent = userSource.find((u) => u.id === c.parentId);
         if (!parent || parent.plan !== filterPlan) return false;
       }
       if (!matchesQuery(`${c.name} ${c.parent} ${c.curriculumStatus}`)) return false;
       return true;
     });
-  }, [filterAge, filterCurriculum, filterPlan, statusChip, pageQuery]);
+  }, [children, filterAge, filterCurriculum, filterPlan, statusChip, pageQuery, userSource]);
 
   const filteredFollowUp = useMemo(() => {
     return followUpProfiles.filter((f) => {
@@ -159,7 +191,7 @@ export function UsersPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader title="المستخدمون والأطفال" extraBadges={['mock data']} />
+      <PageHeader title="المستخدمون والأطفال" extraBadges={isSupabaseEnabled && remoteUsers ? ['Supabase'] : ['mock data']} />
 
       <div className="tabs">
         {[
@@ -404,7 +436,7 @@ export function UsersPage() {
             title={`تفاصيل: ${selected.name}`}
             action={<MockActionButton variant="outline" onClick={() => showMock()}>تعديل (mock)</MockActionButton>}
           />
-          {selected.progress ? <ChildDetailPanel child={selected} /> : <UserDetailPanel user={selected} />}
+          {selected.progress ? <ChildDetailPanel child={selected} /> : <UserDetailPanel user={selected} childrenList={children} />}
         </AdminCard>
       )}
     </div>

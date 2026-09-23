@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
@@ -8,12 +8,19 @@ import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatCard } from '../components/StatCard';
 import { StatusBadge } from '../components/StatusBadge';
+import { useSnackbar } from '../context/SnackbarContext';
+import { isSupabaseEnabled } from '../lib/supabaseClient';
 import {
-  notificationCampaigns,
+  notificationCampaigns as mockCampaigns,
   notificationOverview,
   notificationTemplates,
   notificationTypes,
 } from '../data/mockData';
+import {
+  countDeviceTokens,
+  createAndSendCampaign,
+  fetchNotificationCampaigns,
+} from '../services/supabase/notificationsService';
 
 const statusTone = {
   مجدول: 'info',
@@ -31,7 +38,36 @@ const defaultComposer = {
 };
 
 export function NotificationsPage() {
+  const { showMock } = useSnackbar();
   const [composer, setComposer] = useState(defaultComposer);
+  const [campaigns, setCampaigns] = useState(mockCampaigns);
+  const [tokenCount, setTokenCount] = useState(0);
+  const [sending, setSending] = useState(false);
+
+  const reload = useCallback(async () => {
+    if (!isSupabaseEnabled) return;
+    const [c, t] = await Promise.all([
+      fetchNotificationCampaigns(),
+      countDeviceTokens(),
+    ]);
+    if (c.data) {
+      setCampaigns(
+        c.data.map((row) => ({
+          id: row.id,
+          title: row.title,
+          audience: row.audience,
+          status: row.status,
+          date: row.sentAt,
+          openRate: '—',
+        })),
+      );
+    }
+    setTokenCount(t.count);
+  }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   const applyTemplate = (tpl) => {
     setComposer({
@@ -44,9 +80,42 @@ export function NotificationsPage() {
     });
   };
 
+  const sendNow = async () => {
+    if (!composer.title.trim() || !composer.body.trim()) {
+      showMock('أدخلي العنوان والنص');
+      return;
+    }
+    if (!isSupabaseEnabled) {
+      showMock();
+      return;
+    }
+    setSending(true);
+    const { error, fallback } = await createAndSendCampaign({
+      title: composer.title.trim(),
+      body: composer.body.trim(),
+    });
+    setSending(false);
+    if (error) {
+      showMock('تعذّر الإرسال');
+      return;
+    }
+    showMock(
+      fallback
+        ? 'أُرسلت للحملة (in-app) — انشري Edge Function send-campaign لـ FCM'
+        : 'تم إرسال الحملة',
+    );
+    setComposer(defaultComposer);
+    await reload();
+  };
+
+  const sentCount = campaigns.filter((c) => c.status === 'مُرسل').length;
+
   return (
     <div className="page-stack">
-      <PageHeader title="الإشعارات" />
+      <PageHeader
+        title="الإشعارات"
+        extraBadges={isSupabaseEnabled ? ['Supabase'] : ['mock data']}
+      />
 
       <AdminCard>
         <p style={{ margin: 0, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -57,16 +126,14 @@ export function NotificationsPage() {
       </AdminCard>
 
       <InfoBanner tone="info">
-        التطبيق الأصلي لا يحتوي نظام push حقيقي — هذه الصفحة UI للتخطيط فقط (لا Firebase / لا
-        إرسال).
+        {isSupabaseEnabled
+          ? `أجهزة مسجّلة: ${tokenCount}. الإرسال عبر Edge Function send-campaign (FCM إن وُجد FCM_SERVER_KEY، وإلا in-app).`
+          : 'التطبيق يعرض الحملات المرسلة من Supabase — فعّلي السحابة للإرسال.'}
       </InfoBanner>
 
       <div className="grid-4">
-        <StatCard
-          label="إشعارات مجدولة"
-          value={String(notificationOverview.scheduled)}
-        />
-        <StatCard label="إشعارات مرسلة" value={String(notificationOverview.sent)} sub="mock" />
+        <StatCard label="أجهزة مسجّلة" value={String(tokenCount)} />
+        <StatCard label="إشعارات مرسلة" value={String(sentCount)} />
         <StatCard label="معدل فتح" value={notificationOverview.openRate} sub="متوسط mock" />
         <StatCard
           label="تذكيرات الدروس"
@@ -125,17 +192,16 @@ export function NotificationsPage() {
               onChange={(e) => setComposer((c) => ({ ...c, deepLink: e.target.value }))}
             />
           </label>
-          <label className="cms-field">
-            وقت الإرسال (mock)
-            <input
-              type="datetime-local"
-              value={composer.sendAt}
-              onChange={(e) => setComposer((c) => ({ ...c, sendAt: e.target.value }))}
-            />
-          </label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <MockActionButton action="publish">جدولة الإرسال</MockActionButton>
-            <MockActionButton variant="outline" action="publish">إرسال الآن (mock)</MockActionButton>
+            <MockActionButton
+              onClick={sendNow}
+              disabled={sending}
+            >
+              {sending ? 'جاري الإرسال…' : 'إرسال الآن'}
+            </MockActionButton>
+            <MockActionButton variant="outline" onClick={() => setComposer(defaultComposer)}>
+              مسح
+            </MockActionButton>
           </div>
 
           <SectionHeader title="قوالب جاهزة" />
@@ -186,7 +252,7 @@ export function NotificationsPage() {
               </tr>
             </thead>
             <tbody>
-              {notificationCampaigns.map((c) => (
+              {campaigns.map((c) => (
                 <tr key={c.id}>
                   <td>{c.title}</td>
                   <td style={{ fontSize: '0.85rem' }}>{c.audience}</td>
