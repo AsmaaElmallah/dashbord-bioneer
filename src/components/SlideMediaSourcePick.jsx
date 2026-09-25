@@ -1,15 +1,35 @@
-import { ImageIcon, Layers, Presentation, Upload, X } from 'lucide-react';
-import { useRef } from 'react';
+import { AlertTriangle, ImageOff, Layers, Loader2, Presentation, Upload, Volume2, VolumeX, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { AudioFilePick } from './AudioFilePick';
 import { ImageFilePick } from './ImageFilePick';
 import { StatusBadge } from './StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
-import { mockPptxSlideBundleFromInput } from '../utils/mediaUpload';
+import { extractPptxSlides } from '../utils/pptxSlides';
 
 const MODES = [
-  { id: 'pptx', label: 'شريحة PowerPoint', hint: 'PNG + صوت من ملف واحد' },
+  { id: 'pptx', label: 'ملف PowerPoint', hint: 'كل شريحة = صورة + صوت' },
   { id: 'separate', label: 'ملفات منفصلة', hint: 'صورة و/أو صوت' },
 ];
+
+function SlideThumb({ file }) {
+  const [url, setUrl] = useState(null);
+
+  useEffect(() => {
+    if (!file?.rawFile) return undefined;
+    const next = URL.createObjectURL(file.rawFile);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+
+  if (!url) {
+    return (
+      <div className="slide-media-source__thumb slide-media-source__thumb--empty">
+        <ImageOff size={18} />
+      </div>
+    );
+  }
+  return <img className="slide-media-source__thumb" src={url} alt="" />;
+}
 
 export function SlideMediaSourcePick({
   mode = 'pptx',
@@ -17,19 +37,32 @@ export function SlideMediaSourcePick({
   imageFile,
   audioFile,
   pptxFile,
+  pptxSlides = [],
   onImagePick,
   onAudioPick,
   onPptxPick,
   compact = false,
 }) {
   const inputRef = useRef(null);
-  const { showMock } = useSnackbar();
+  const { showSuccess, showError } = useSnackbar();
+  const [extracting, setExtracting] = useState(false);
 
-  const handlePptx = (fileList) => {
-    const bundle = mockPptxSlideBundleFromInput(fileList?.[0]);
-    if (!bundle) return;
-    onPptxPick?.(bundle);
-    showMock('تم استخراج الصورة والصوت من الملف');
+  const handlePptx = async (fileList) => {
+    const file = fileList?.[0];
+    if (!file) return;
+    setExtracting(true);
+    try {
+      const bundle = await extractPptxSlides(file);
+      if (bundle.error) {
+        showError(bundle.error);
+        return;
+      }
+      onPptxPick?.(bundle);
+      const usable = bundle.slides.filter((s) => s.imageFile || s.audioFile).length;
+      showSuccess(`تم تجهيز ${usable} شريحة من ${bundle.slides.length}`);
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const clearPptx = () => {
@@ -60,24 +93,25 @@ export function SlideMediaSourcePick({
             className="media-dropzone__zone slide-media-source__pptx-zone"
             role="button"
             tabIndex={0}
-            onClick={() => inputRef.current?.click()}
-            onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
+            onClick={() => !extracting && inputRef.current?.click()}
+            onKeyDown={(e) => e.key === 'Enter' && !extracting && inputRef.current?.click()}
           >
             <Presentation size={32} strokeWidth={1.5} />
-            <p className="media-dropzone__title">ملف PowerPoint — شريحة واحدة</p>
-            <p className="text-caption" style={{ margin: '0 0 8px', maxWidth: 320 }}>
-              يُستخرج تلقائياً: صورة الشريحة (PNG) + التعليق الصوتي (m4a) من نفس الملف
+            <p className="media-dropzone__title">ملف PowerPoint — شريحة أو أكثر</p>
+            <p className="text-caption" style={{ margin: '0 0 8px', maxWidth: 340 }}>
+              كل شريحة تتحول لشريحة في التطبيق: صورها تُجمَّع في صورة واحدة بنفس أماكنها + التعليق الصوتي (m4a/mp3)
             </p>
             <button
               type="button"
               className="mock-btn mock-btn--outline"
+              disabled={extracting}
               onClick={(e) => {
                 e.stopPropagation();
                 inputRef.current?.click();
               }}
             >
-              <Upload size={16} />
-              اختر .pptx
+              {extracting ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
+              {extracting ? 'جاري تجهيز الشرائح…' : 'اختر .pptx'}
             </button>
             <input
               ref={inputRef}
@@ -96,7 +130,7 @@ export function SlideMediaSourcePick({
               <li className="media-dropzone__file">
                 <Layers size={16} />
                 <span className="media-dropzone__file-name">{pptxFile.name}</span>
-                <span className="text-caption">{pptxFile.sizeMock}</span>
+                <span className="text-caption">{pptxSlides.length} شريحة</span>
                 <StatusBadge tone="info">جاهز</StatusBadge>
                 <button type="button" className="media-dropzone__remove" aria-label="إزالة" onClick={clearPptx}>
                   <X size={14} />
@@ -105,20 +139,26 @@ export function SlideMediaSourcePick({
             </ul>
           )}
 
-          {imageFile?.source === 'pptx' && audioFile?.source === 'pptx' && (
-            <div className="slide-media-source__extracted">
-              <p className="slide-media-source__extracted-title">مستخرج من PowerPoint</p>
-              <div className="slide-media-source__extracted-row">
-                <ImageIcon size={14} />
-                <span>{imageFile.name}</span>
-                <span className="text-caption">{imageFile.sizeMock}</span>
-              </div>
-              <div className="slide-media-source__extracted-row">
-                <span aria-hidden>🔊</span>
-                <span>{audioFile.name}</span>
-                <span className="text-caption">{audioFile.sizeMock}</span>
-              </div>
-            </div>
+          {pptxSlides.length > 0 && (
+            <ul className="slide-media-source__slides">
+              {pptxSlides.map((s) => (
+                <li key={s.number} className="slide-media-source__slide">
+                  <SlideThumb file={s.imageFile} />
+                  <div className="slide-media-source__slide-info">
+                    <strong>شريحة {s.number}</strong>
+                    <span className="text-caption">
+                      {s.audioFile ? <Volume2 size={13} /> : <VolumeX size={13} />}{' '}
+                      {s.audioFile ? 'صوت' : 'بدون صوت'}
+                    </span>
+                    {s.warnings.map((w) => (
+                      <span key={w} className="slide-media-source__warn">
+                        <AlertTriangle size={12} /> {w}
+                      </span>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}

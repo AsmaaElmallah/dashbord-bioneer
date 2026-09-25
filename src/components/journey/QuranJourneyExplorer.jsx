@@ -1,6 +1,5 @@
-import { CheckCircle2, Cloud, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Cloud, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { AudioFilePick } from '../AudioFilePick';
 import { AdminCard } from '../AdminCard';
 import { AdminTableContainer } from '../AdminTableContainer';
@@ -54,6 +53,7 @@ function markSessionAudioReady(session, audioFile, storagePath) {
     storagePath: storagePath ?? session.storagePath ?? null,
     status: 'موجود',
     statusKey: 'ok',
+    publishStatus: storagePath ? 'published' : session.publishStatus,
     cloudSaved: Boolean(storagePath),
     audioFile: audioFile
       ? {
@@ -111,11 +111,8 @@ export function QuranJourneyExplorer() {
   });
   const [selectedKhatmah, setSelectedKhatmah] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [filters, setFilters] = useState({ khatmah: 'all', status: 'all' });
   const [savingNew, setSavingNew] = useState(false);
-  const [savingAudioId, setSavingAudioId] = useState(null);
-  const [pendingAudio, setPendingAudio] = useState(null);
   const [lastSavedSessionId, setLastSavedSessionId] = useState(null);
 
   const filteredSessions = useMemo(() => filterQuranSessions(sessions, filters), [sessions, filters]);
@@ -136,13 +133,6 @@ export function QuranJourneyExplorer() {
     if (!selectedKhatmah || !selectedDay) return [];
     return getSessionsForKhatmahDay(sessions, selectedKhatmah, selectedDay);
   }, [sessions, selectedKhatmah, selectedDay]);
-
-  const selectedSession =
-    daySessions.find((s) => s.id === selectedSessionId) ?? daySessions[0] ?? null;
-
-  useEffect(() => {
-    setPendingAudio(null);
-  }, [selectedSessionId]);
 
   const khatmahSummary = selectedKhatmah ? getKhatmahPlanSummary(selectedKhatmah) : null;
 
@@ -173,14 +163,12 @@ export function QuranJourneyExplorer() {
       setView('journey');
       setSelectedKhatmah(null);
       setSelectedDay(null);
-      setSelectedSessionId(null);
       return;
     }
     if (item.view === 'days') {
       setView('days');
       setSelectedKhatmah(item.khatmah);
       setSelectedDay(null);
-      setSelectedSessionId(null);
       return;
     }
     if (item.view === 'dayDetail') {
@@ -195,20 +183,13 @@ export function QuranJourneyExplorer() {
     setSessions((prev) => ensureKhatmahPlanSessions(prev, k));
     setSelectedKhatmah(k);
     setSelectedDay(null);
-    setSelectedSessionId(null);
     setView('days');
     showMock(`تم تحميل خطة الختمة ${k}`);
   };
 
   const openDay = (node) => {
     const { khatmah, day } = node.payload ?? {};
-    setSessions((prev) => {
-      const next = ensureKhatmahPlanSessions(prev, khatmah);
-      const first = getSessionsForKhatmahDay(next, khatmah, day)[0];
-      if (first) setSelectedSessionId(first.id);
-      else setSelectedSessionId(null);
-      return next;
-    });
+    setSessions((prev) => ensureKhatmahPlanSessions(prev, khatmah));
     setSelectedKhatmah(khatmah);
     setSelectedDay(day);
     setView('dayDetail');
@@ -231,7 +212,6 @@ export function QuranJourneyExplorer() {
       return prev.map((s) => (s.id === saved.id ? saved : s));
     });
     setLastSavedSessionId(saved.id);
-    setSelectedSessionId(saved.id);
   };
 
   const persistSession = async (session, audioFile) => {
@@ -301,29 +281,6 @@ export function QuranJourneyExplorer() {
     }
   };
 
-  const handleSaveAudioForSelected = async () => {
-    const audioFile = pendingAudio ?? selectedSession?.audioFile;
-    if (!selectedSessionId || !audioFile) {
-      showError('اختاري ملف mp3 أو m4a أولاً.');
-      return;
-    }
-
-    const current = sessions.find((s) => s.id === selectedSessionId);
-    if (!current) return;
-
-    setSavingAudioId(selectedSessionId);
-    try {
-      const saved = await persistSession(current, audioFile);
-      if (!saved) return;
-
-      mergeSavedSession(saved);
-      setPendingAudio(null);
-      showSuccess(`تم حفظ صوت الجلسة #${saved.session} — الحالة: موجود`);
-    } finally {
-      setSavingAudioId(null);
-    }
-  };
-
   const handleDeleteSession = async (id) => {
     if (!window.confirm('حذف هذه الجلسة؟')) return;
 
@@ -336,7 +293,6 @@ export function QuranJourneyExplorer() {
     }
 
     setSessions((prev) => prev.filter((s) => s.id !== id));
-    if (selectedSessionId === id) setSelectedSessionId(null);
     showMock('تم حذف الجلسة');
   };
 
@@ -432,7 +388,7 @@ export function QuranJourneyExplorer() {
       )}
 
       {view === 'dayDetail' && selectedKhatmah && selectedDay && (
-        <div className="grid-2 quran-day-detail">
+        <div className="quran-day-detail">
           <AdminCard>
             <div className="quran-day-detail__head">
               <SectionHeader
@@ -538,12 +494,7 @@ export function QuranJourneyExplorer() {
                     </tr>
                   ) : (
                     daySessions.map((s) => (
-                      <tr
-                        key={s.id}
-                        className={selectedSessionId === s.id ? 'selected' : ''}
-                        onClick={() => setSelectedSessionId(s.id)}
-                        style={{ cursor: 'pointer' }}
-                      >
+                      <tr key={s.id}>
                         <td>
                           #{s.session}
                           <span className="text-caption"> ({s.sessionInDay}/{s.dailySessions})</span>
@@ -572,10 +523,7 @@ export function QuranJourneyExplorer() {
                             className="mock-btn mock-btn--outline"
                             style={{ padding: '4px 8px' }}
                             aria-label="حذف"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteSession(s.id);
-                            }}
+                            onClick={() => handleDeleteSession(s.id)}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -586,120 +534,6 @@ export function QuranJourneyExplorer() {
                 </tbody>
               </table>
             </AdminTableContainer>
-          </AdminCard>
-
-          <AdminCard>
-            <SectionHeader title="تفاصيل الجلسة / السورة" />
-            {selectedSession ? (
-              <>
-                {selectedSession.cloudSaved || selectedSession.storagePath ? (
-                  <div className="quran-save-banner" role="status">
-                    <CheckCircle2 size={18} color="var(--success, #059669)" aria-hidden />
-                    <span>
-                      <strong>محفوظة على السحابة</strong>
-                      {selectedSession.storagePath && (
-                        <>
-                          {' '}
-                          — <code style={{ fontSize: '0.75rem' }}>{selectedSession.storagePath}</code>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                ) : pendingAudio || selectedSession.audioFile ? (
-                  <div className="quran-save-banner quran-save-banner--pending" role="status">
-                    ملف صوت جاهز — اضغطي «رفع وحفظ الصوت» لإتمام الحفظ على السحابة.
-                  </div>
-                ) : null}
-
-                <h4 style={{ margin: '0 0 8px', color: 'var(--track-quran)' }}>
-                  {selectedSession.title}
-                </h4>
-                <p>
-                  <strong>ختمة {selectedSession.khatmah}</strong> — جلسة {selectedSession.session}
-                </p>
-                <p>
-                  <strong>نطاق الآيات:</strong> {selectedSession.surahRange}
-                </p>
-                <SectionHeader title="ملف الصوت" />
-                <AudioFilePick
-                  label="اختيار mp3 / m4a"
-                  file={pendingAudio ?? selectedSession.audioFile}
-                  onPick={(audioFile) => {
-                    if (audioFile) {
-                      setPendingAudio(audioFile);
-                      setLastSavedSessionId(null);
-                    } else {
-                      setPendingAudio(null);
-                      setSessions((prev) =>
-                        prev.map((s) =>
-                          s.id === selectedSessionId
-                            ? {
-                                ...s,
-                                audioFile: null,
-                                storagePath: null,
-                                cloudSaved: false,
-                                status: 'ناقص',
-                                statusKey: 'missing',
-                              }
-                            : s,
-                        ),
-                      );
-                    }
-                  }}
-                />
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                  <button
-                    type="button"
-                    className="mock-btn mock-btn--primary"
-                    onClick={handleSaveAudioForSelected}
-                    disabled={
-                      savingAudioId === selectedSessionId ||
-                      !(pendingAudio ?? selectedSession.audioFile)?.rawFile
-                    }
-                  >
-                    {savingAudioId === selectedSessionId ? (
-                      <>
-                        <Loader2 size={16} className="spin" aria-hidden />
-                        جاري الرفع والحفظ…
-                      </>
-                    ) : (
-                      'رفع وحفظ الصوت'
-                    )}
-                  </button>
-                </div>
-                <p>
-                  <strong>مسار الملف:</strong>
-                  <br />
-                  <code style={{ fontSize: '0.78rem', wordBreak: 'break-all' }}>
-                    {selectedSession.audioPath}
-                  </code>
-                </p>
-                <p>
-                  <strong>المدة:</strong> ~{selectedSession.durationMinutes} دقيقة
-                </p>
-                <StatusBadge tone={sessionStatusTone[selectedSession.status]}>
-                  {selectedSession.status}
-                </StatusBadge>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
-                  <Link
-                    to="/content-studio/quran-session"
-                    className="mock-btn mock-btn--primary"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    فتح محرر الجلسة
-                  </Link>
-                  <button
-                    type="button"
-                    className="mock-btn mock-btn--outline"
-                    onClick={() => showMock('تشغيل الصوت')}
-                  >
-                    معاينة تشغيل
-                  </button>
-                </div>
-              </>
-            ) : (
-              <p className="text-caption">اختر جلسة من الجدول أو أضف جلسة جديدة.</p>
-            )}
           </AdminCard>
         </div>
       )}

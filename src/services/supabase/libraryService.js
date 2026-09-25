@@ -2,11 +2,52 @@ import {
   contentLibraryHubTabs,
   getCategoryMeta,
 } from '../../data/contentLibraryAdmin';
+import { activityAgeGroups, exerciseAgeGroups } from '../../data/mockData';
 import { isSupabaseEnabled, supabase } from '../../lib/supabaseClient';
 
 const LIBRARY_TABLE = 'library_items';
 const AGE_GROUPS_TABLE = 'age_hub_groups';
 const AGE_ITEMS_TABLE = 'age_hub_items';
+
+const REQUEST_TIMEOUT_MS = 20000;
+
+function withTimeout(request) {
+  return Promise.race([
+    request,
+    new Promise((resolve) => {
+      setTimeout(
+        () => resolve({ data: null, error: new Error('request_timeout') }),
+        REQUEST_TIMEOUT_MS,
+      );
+    }),
+  ]);
+}
+
+/** Exercise and activity groups share ids (age_0_3…) but age_hub_groups.id is a single-column PK. */
+const EXERCISE_DB_PREFIX = 'ex_';
+
+function groupIdToDb(groupId, hubType) {
+  if (hubType !== 'exercises' || groupId.startsWith(EXERCISE_DB_PREFIX)) return groupId;
+  return `${EXERCISE_DB_PREFIX}${groupId}`;
+}
+
+function groupIdFromDb(dbId, hubType) {
+  if (hubType === 'exercises' && dbId.startsWith(EXERCISE_DB_PREFIX)) {
+    return dbId.slice(EXERCISE_DB_PREFIX.length);
+  }
+  return dbId;
+}
+
+function defaultAgeHubGroups(hubType) {
+  const source = hubType === 'exercises' ? exerciseAgeGroups : activityAgeGroups;
+  return source.map((g) => ({
+    id: g.id,
+    title: g.title,
+    subtitle: g.subtitle ?? '',
+    parentNote: g.parentNote ?? '',
+    items: [],
+  }));
+}
 
 const PUBLISH_TO_DB = {
   منشور: 'published',
@@ -50,6 +91,8 @@ export function rowToMediaItem(row) {
     duration: row.duration_label ?? '—',
     moodTag: row.mood_tag ?? '—',
     natureChip: row.nature_chip,
+    coverUrl: row.cover_url ?? null,
+    videoUrl: row.video_url ?? null,
     itemType: row.item_type ?? 'video',
     linkStatus: row.link_status ?? 'سليم',
     publishStatus: publishFromDb(row.publish_status),
@@ -71,6 +114,8 @@ export function adminItemToRow(item, tabId) {
     duration_label: item.duration ?? '—',
     mood_tag: item.moodTag ?? '—',
     nature_chip: tabId === 'nature' ? item.natureChip ?? null : null,
+    cover_url: item.coverUrl || null,
+    video_url: item.videoUrl || null,
     item_type: item.itemType ?? (playlistId && !videoId ? 'playlist' : 'video'),
     link_status: item.linkStatus ?? 'سليم',
     hub_kind: 'media',
@@ -82,7 +127,7 @@ export function adminItemToRow(item, tabId) {
 
 export function ageHubGroupToRow(group, hubType, sortOrder) {
   return {
-    id: group.id,
+    id: groupIdToDb(group.id, hubType),
     hub_type: hubType,
     title: group.title,
     subtitle: group.subtitle ?? null,
@@ -92,17 +137,19 @@ export function ageHubGroupToRow(group, hubType, sortOrder) {
   };
 }
 
-export function ageHubItemToRow(item, groupId, sortOrder) {
+export function ageHubItemToRow(item, groupId, sortOrder, hubType) {
   const videoId = item.videoId?.trim() || null;
   const playlistId = item.playlistId?.trim() || null;
 
   return {
     id: item.id,
-    group_id: groupId,
+    group_id: groupIdToDb(groupId, hubType),
     title: item.title,
     video_id: videoId,
     playlist_id: playlistId,
     mood_tag: item.moodTag ?? '—',
+    cover_url: item.coverUrl || null,
+    video_url: item.videoUrl || null,
     item_type: playlistId && !videoId ? 'playlist' : 'video',
     sort_order: sortOrder,
     publish_status: publishToDb(item.publishStatus ?? 'منشور'),
@@ -116,23 +163,28 @@ function rowToAgeHubItem(row) {
     videoId: row.video_id,
     playlistId: row.playlist_id,
     moodTag: row.mood_tag ?? '—',
+    coverUrl: row.cover_url ?? null,
+    videoUrl: row.video_url ?? null,
     publishStatus: publishFromDb(row.publish_status),
   };
 }
 
 function buildAgeHubGroups(groupRows, itemRows, hubType) {
-  const groups = groupRows
+  const remoteRows = groupRows
     .filter((g) => g.hub_type === hubType)
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map((g) => ({
-      id: g.id,
-      title: g.title,
-      subtitle: g.subtitle ?? '',
-      parentNote: g.parent_note ?? '',
-      items: [],
-    }));
+    .sort((a, b) => a.sort_order - b.sort_order);
 
-  const groupMap = Object.fromEntries(groups.map((g) => [g.id, g]));
+  const groups = remoteRows.length
+    ? remoteRows.map((g) => ({
+        id: groupIdFromDb(g.id, hubType),
+        title: g.title,
+        subtitle: g.subtitle ?? '',
+        parentNote: g.parent_note ?? '',
+        items: [],
+      }))
+    : defaultAgeHubGroups(hubType);
+
+  const groupMap = Object.fromEntries(groups.map((g) => [groupIdToDb(g.id, hubType), g]));
 
   itemRows
     .filter((item) => groupMap[item.group_id])
@@ -199,11 +251,9 @@ export async function upsertLibraryItem(row) {
     return { data: null, error: null, offline: true };
   }
 
-  const { data, error } = await supabase
-    .from(LIBRARY_TABLE)
-    .upsert(row, { onConflict: 'id' })
-    .select()
-    .single();
+  const { data, error } = await withTimeout(
+    supabase.from(LIBRARY_TABLE).upsert(row, { onConflict: 'id' }).select().single(),
+  );
 
   return { data, error, offline: false };
 }
@@ -213,7 +263,7 @@ export async function deleteLibraryItem(id) {
     return { error: null, offline: true };
   }
 
-  const { error } = await supabase.from(LIBRARY_TABLE).delete().eq('id', id);
+  const { error } = await withTimeout(supabase.from(LIBRARY_TABLE).delete().eq('id', id));
   return { error, offline: false };
 }
 
@@ -222,7 +272,9 @@ export async function upsertAgeHubGroup(row) {
     return { error: null, offline: true };
   }
 
-  const { error } = await supabase.from(AGE_GROUPS_TABLE).upsert(row, { onConflict: 'id' });
+  const { error } = await withTimeout(
+    supabase.from(AGE_GROUPS_TABLE).upsert(row, { onConflict: 'id' }),
+  );
   return { error, offline: false };
 }
 
@@ -231,7 +283,9 @@ export async function upsertAgeHubItem(row) {
     return { error: null, offline: true };
   }
 
-  const { error } = await supabase.from(AGE_ITEMS_TABLE).upsert(row, { onConflict: 'id' });
+  const { error } = await withTimeout(
+    supabase.from(AGE_ITEMS_TABLE).upsert(row, { onConflict: 'id' }),
+  );
   return { error, offline: false };
 }
 
@@ -240,12 +294,35 @@ export async function deleteAgeHubItemById(id) {
     return { error: null, offline: true };
   }
 
-  const { error } = await supabase.from(AGE_ITEMS_TABLE).delete().eq('id', id);
+  const { error } = await withTimeout(supabase.from(AGE_ITEMS_TABLE).delete().eq('id', id));
   return { error, offline: false };
+}
+
+const VIDEO_BUCKET = 'library-videos';
+
+export async function uploadLibraryVideo(file) {
+  if (!isSupabaseEnabled || !supabase) {
+    return { data: null, error: new Error('Supabase غير مفعّل') };
+  }
+  const ext = (file.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage.from(VIDEO_BUCKET).upload(path, file, {
+    upsert: false,
+    contentType: file.type || 'video/mp4',
+  });
+  if (error) return { data: null, error };
+  const { data } = supabase.storage.from(VIDEO_BUCKET).getPublicUrl(path);
+  return { data: { url: data.publicUrl }, error: null };
 }
 
 export function translateLibrarySaveError(message) {
   const m = message?.toLowerCase() ?? '';
+  if (m.includes('video_url') || m.includes('bucket not found')) {
+    return 'رفع الفيديو غير مفعّل بعد — شغّلي migration 20260526100018_uploaded_media_videos.sql في Supabase SQL Editor.';
+  }
+  if (m.includes('exceeded the maximum allowed size') || m.includes('payload too large')) {
+    return 'حجم الفيديو أكبر من المسموح في Supabase — ارفعي فيديو أصغر أو زوّدي حد الرفع من إعدادات Storage.';
+  }
   if (m.includes('row-level security') || m.includes('permission denied')) {
     return 'لا صلاحية — سجّلي الدخول وتأكدي أن دورك admin أو editor في profiles.';
   }
@@ -255,8 +332,14 @@ export function translateLibrarySaveError(message) {
   if (m.includes('jwt') || m.includes('not authenticated')) {
     return 'انتهت الجلسة — سجّلي الدخول ثم أعيدي الحفظ.';
   }
+  if (m.includes('request_timeout')) {
+    return 'انتهت مهلة الاتصال بـ Supabase — أعيدي تحميل الصفحة (F5) وجربي الحفظ مرة أخرى.';
+  }
+  if (m.includes('cover_url')) {
+    return 'عمود صورة الخلفية غير موجود — شغّلي migration 20260526100017_media_cover_images.sql في Supabase SQL Editor.';
+  }
   if (m.includes('library_items_youtube_check') || m.includes('age_hub_items_youtube_check')) {
-    return 'يجب إدخال videoId أو playlistId قبل الحفظ.';
+    return 'يجب إدخال رابط YouTube أو رفع ملف فيديو قبل الحفظ.';
   }
   return message;
 }

@@ -1,23 +1,36 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { cleanToast } from '../utils/adminMessages';
 
 const SnackbarContext = createContext(null);
 
 export function SnackbarProvider({ children }) {
-  const [message, setMessage] = useState(null);
+  const [toast, setToast] = useState(null);
+  const timerRef = useRef();
 
-  const showMock = useCallback((text = 'تم') => {
-    setMessage(cleanToast(text));
-    window.clearTimeout(showMock._t);
-    showMock._t = window.setTimeout(() => setMessage(null), 2800);
+  const show = useCallback((text, variant, duration) => {
+    setToast({ text: cleanToast(text), variant });
+    window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => setToast(null), duration);
   }, []);
 
+  const value = useMemo(
+    () => ({
+      showMock: (text = 'تم') => show(text, 'info', 2800),
+      showSuccess: (text = 'تم الحفظ') => show(text, 'success', 2800),
+      showError: (text = 'حدث خطأ') => show(text, 'error', 5000),
+    }),
+    [show],
+  );
+
   return (
-    <SnackbarContext.Provider value={{ showMock }}>
+    <SnackbarContext.Provider value={value}>
       {children}
-      {message && (
-        <div className="snackbar" role="status">
-          {message}
+      {toast && (
+        <div
+          className={`snackbar snackbar--${toast.variant}`}
+          role={toast.variant === 'error' ? 'alert' : 'status'}
+        >
+          {toast.text}
         </div>
       )}
     </SnackbarContext.Provider>

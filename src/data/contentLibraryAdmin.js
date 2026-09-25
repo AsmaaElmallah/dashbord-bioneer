@@ -94,6 +94,8 @@ function libRow(row) {
     duration: row.duration ?? '—',
     moodTag: row.moodTag ?? '—',
     natureChip: row.natureChip ?? null,
+    coverUrl: row.coverUrl ?? null,
+    videoUrl: row.videoUrl ?? null,
     itemType,
     linkStatus: row.linkStatus ?? 'سليم',
     publishStatus: row.publishStatus ?? 'منشور',
@@ -148,33 +150,41 @@ export function getMediaItemsForTab(state, tabId) {
   return state.mediaItems.filter((i) => i.categoryId === tabId);
 }
 
-export function createMediaItem(tabId, draft) {
-  const { title, youtubeInput, duration, moodTag, natureChip, contentType } = draft;
-  if (!title?.trim()) return { error: 'العنوان مطلوب.' };
+/** مصدر الفيديو من المسودة: رابط YouTube (فيديو / playlist) أو ملف مرفوع. */
+export function resolveVideoSource(draft) {
+  if (draft.sourceType === 'upload') {
+    const videoUrl = draft.videoUrl?.trim();
+    if (!videoUrl) return { error: 'ارفعي ملف الفيديو أولاً.' };
+    return { videoId: null, playlistId: null, videoUrl };
+  }
 
-  const parsed = parseYoutubeInput(youtubeInput);
+  const parsed = parseYoutubeInput(draft.youtubeInput);
   if (parsed.error) return { error: parsed.error };
 
-  let videoId = parsed.videoId;
-  let playlistId = parsed.playlistId;
+  let videoId = parsed.videoId || null;
+  let playlistId = parsed.playlistId || null;
+  if (draft.contentType === 'playlist') {
+    if (!playlistId) return { error: 'أدخل رابط playlist أو playlistId.' };
+    videoId = null;
+  } else {
+    if (!videoId) return { error: 'أدخل رابط فيديو YouTube أو اختاري "رفع فيديو".' };
+    playlistId = null;
+  }
+  return { videoId, playlistId, videoUrl: null };
+}
 
-  if (contentType === 'video' && !videoId) {
-    return { error: 'أدخل رابط فيديو أو videoId.' };
-  }
-  if (contentType === 'playlist' && !playlistId) {
-    return { error: 'أدخل رابط playlist أو playlistId.' };
-  }
-  if (contentType === 'video') playlistId = null;
-  if (contentType === 'playlist') videoId = null;
+export function createMediaItem(tabId, draft) {
+  const { title, duration, moodTag, natureChip, coverUrl } = draft;
+  if (!title?.trim()) return { error: 'العنوان مطلوب.' };
 
-  if (!videoId && !playlistId) {
-    return { error: 'يجب videoId أو playlistId على الأقل.' };
-  }
+  const source = resolveVideoSource(draft);
+  if (source.error) return { error: source.error };
+  const { videoId, playlistId, videoUrl } = source;
 
   const categoryId = tabId;
   const cat = contentLibraryHubTabs.find((t) => t.id === categoryId);
   const prefix = categoryId === 'library_books' ? 'books' : categoryId;
-  const id = `${prefix}_${videoId ?? playlistId}_${Date.now()}`;
+  const id = `${prefix}_${videoId ?? playlistId ?? 'upload'}_${Date.now()}`;
 
   const item = libRow({
     id,
@@ -182,9 +192,11 @@ export function createMediaItem(tabId, draft) {
     title: title.trim(),
     videoId,
     playlistId,
+    videoUrl,
     duration: duration?.trim() || '—',
     moodTag: moodTag?.trim() || '—',
     natureChip: categoryId === 'nature' ? natureChip || 'rain' : null,
+    coverUrl: coverUrl || null,
     publishStatus: 'منشور',
     linkStatus: 'سليم',
   });
@@ -202,19 +214,14 @@ export function deleteMediaItem(items, itemId) {
 
 export function createAgeHubItem(groups, ageGroupId, draft, options) {
   const { idPrefix, moodVideo = 'تمرين', moodPlaylist = 'قائمة' } = options;
-  const { title, youtubeInput, moodTag, contentType } = draft;
+  const { title, moodTag, coverUrl } = draft;
   const group = groups.find((g) => g.id === ageGroupId);
   if (!group) return { error: 'اختر فئة عمرية.' };
   if (!title?.trim()) return { error: 'العنوان مطلوب.' };
 
-  const parsed = parseYoutubeInput(youtubeInput);
-  if (parsed.error) return { error: parsed.error };
-
-  let videoId = parsed.videoId || null;
-  let playlistId = parsed.playlistId || null;
-  if (contentType === 'video') playlistId = null;
-  if (contentType === 'playlist') videoId = null;
-  if (!videoId && !playlistId) return { error: 'يجب رابط فيديو أو playlist.' };
+  const source = resolveVideoSource(draft);
+  if (source.error) return { error: source.error };
+  const { videoId, playlistId, videoUrl } = source;
 
   const id = `${idPrefix}_${ageGroupId}_${Date.now()}`;
   const item = {
@@ -222,7 +229,9 @@ export function createAgeHubItem(groups, ageGroupId, draft, options) {
     title: title.trim(),
     videoId,
     playlistId,
+    videoUrl,
     moodTag: moodTag?.trim() || (playlistId ? moodPlaylist : moodVideo),
+    coverUrl: coverUrl || null,
   };
 
   return {
@@ -288,14 +297,9 @@ export function updateMediaItemInState(state, tabId, itemId, patch) {
 }
 
 export function buildMediaItemPatchFromDraft(draft, tabId) {
-  const parsed = parseYoutubeInput(draft.youtubeInput);
-  if (parsed.error) return { error: parsed.error };
-
-  let videoId = parsed.videoId || null;
-  let playlistId = parsed.playlistId || null;
-  if (draft.contentType === 'video') playlistId = null;
-  if (draft.contentType === 'playlist') videoId = null;
-  if (!videoId && !playlistId) return { error: 'يجب رابط فيديو أو playlist.' };
+  const source = resolveVideoSource(draft);
+  if (source.error) return { error: source.error };
+  const { videoId, playlistId, videoUrl } = source;
 
   const itemType = playlistId && !videoId ? 'playlist' : 'video';
   return {
@@ -303,32 +307,31 @@ export function buildMediaItemPatchFromDraft(draft, tabId) {
       title: draft.title?.trim(),
       videoId,
       playlistId,
+      videoUrl,
       duration: draft.duration?.trim() || '—',
       moodTag: draft.moodTag?.trim() || '—',
       natureChip: tabId === 'nature' ? draft.natureChip : null,
+      coverUrl: draft.coverUrl || null,
       itemType,
     },
   };
 }
 
 export function buildAgeHubItemPatchFromDraft(draft, { isExercise = false } = {}) {
-  const parsed = parseYoutubeInput(draft.youtubeInput);
-  if (parsed.error) return { error: parsed.error };
-
-  let videoId = parsed.videoId || null;
-  let playlistId = parsed.playlistId || null;
-  if (draft.contentType === 'video') playlistId = null;
-  if (draft.contentType === 'playlist') videoId = null;
-  if (!videoId && !playlistId) return { error: 'يجب رابط فيديو أو playlist.' };
+  const source = resolveVideoSource(draft);
+  if (source.error) return { error: source.error };
+  const { videoId, playlistId, videoUrl } = source;
 
   return {
     patch: {
       title: draft.title?.trim(),
       videoId,
       playlistId,
+      videoUrl,
       moodTag:
         draft.moodTag?.trim() ||
         (playlistId ? 'قائمة' : isExercise ? 'تمرين' : 'نشاط'),
+      coverUrl: draft.coverUrl || null,
     },
   };
 }

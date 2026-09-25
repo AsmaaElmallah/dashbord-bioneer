@@ -35,8 +35,7 @@ function emptyDraft(sectionId) {
 }
 
 export function CmsPage() {
-  const { showMock } = useSnackbar();
-  const showError = showMock;
+  const { showMock, showError } = useSnackbar();
   const [sectionId, setSectionId] = useState('parent_culture');
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);

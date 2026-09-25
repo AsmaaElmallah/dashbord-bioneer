@@ -4,8 +4,9 @@ import { useSearchParams } from 'react-router-dom';
 import { AdminCard } from './AdminCard';
 import { AdminTableContainer } from './AdminTableContainer';
 import { EmptyState } from './EmptyState';
+import { MediaCoverPick } from './MediaCoverPick';
+import { MediaVideoSourceFields } from './MediaVideoSourceFields';
 import { SectionHeader } from './SectionHeader';
-import { StatusBadge } from './StatusBadge';
 import { useAuth } from '../context/AuthContext';
 import { useSnackbar } from '../context/SnackbarContext';
 import {
@@ -49,12 +50,6 @@ import {
   saveAdminState,
 } from '../utils/adminLocalStorage';
 
-const linkTone = {
-  سليم: 'success',
-  'يحتاج مراجعة': 'warning',
-  معطّل: 'error',
-};
-
 const emptyMediaDraft = () => ({
   title: '',
   youtubeInput: '',
@@ -62,6 +57,9 @@ const emptyMediaDraft = () => ({
   duration: '',
   moodTag: '',
   natureChip: 'rain',
+  coverUrl: '',
+  sourceType: 'youtube',
+  videoUrl: '',
 });
 
 const emptyAgeHubDraft = (contentType = 'video') => ({
@@ -69,7 +67,15 @@ const emptyAgeHubDraft = (contentType = 'video') => ({
   youtubeInput: '',
   contentType,
   moodTag: '',
+  coverUrl: '',
+  sourceType: 'youtube',
+  videoUrl: '',
 });
+
+function youtubeThumbFromInput(input) {
+  const { videoId } = parseYoutubeInput(input ?? '');
+  return videoId ? getYoutubeThumbnailUrl(videoId) : null;
+}
 
 function firstAgeGroupId(state, tabId) {
   return getAgeHubGroups(state, tabId)[0]?.id ?? 'age_0_3';
@@ -93,6 +99,19 @@ export function ContentLibraryManager() {
   const [ageHubDraft, setAgeHubDraft] = useState(emptyAgeHubDraft('video'));
   const [selectedAgeGroupId, setSelectedAgeGroupId] = useState('age_0_3');
   const [remoteLoading, setRemoteLoading] = useState(isSupabaseEnabled);
+  const [saving, setSaving] = useState(false);
+
+  const runSave = async (handler) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await handler();
+    } catch (err) {
+      showError(`تعذّر الحفظ: ${translateLibrarySaveError(err?.message) ?? err}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const tabMeta = contentLibraryHubTabs.find((t) => t.id === tab);
   const isAgeHub = isAgeHubTab(tab);
@@ -153,7 +172,9 @@ export function ContentLibraryManager() {
     }
 
     const sortOrder = sortIndex >= 0 ? sortIndex : group.items.length;
-    const { error: iErr } = await upsertAgeHubItem(ageHubItemToRow(item, groupId, sortOrder));
+    const { error: iErr } = await upsertAgeHubItem(
+      ageHubItemToRow(item, groupId, sortOrder, hubTypeForTab(tabId)),
+    );
     if (iErr) {
       showError(translateLibrarySaveError(iErr.message) ?? 'فشل الحفظ في Supabase');
       return { ok: false };
@@ -193,7 +214,7 @@ export function ContentLibraryManager() {
   const handleAddMedia = async () => {
     const result = createMediaItem(tab, mediaDraft);
     if (result.error) {
-      showMock(result.error);
+      showError(result.error);
       return;
     }
 
@@ -299,18 +320,6 @@ export function ContentLibraryManager() {
     }
   };
 
-  const canSaveMedia =
-    mediaDraft.title.trim() &&
-    (mediaDraft.contentType === 'playlist'
-      ? parseYoutubeInput(mediaDraft.youtubeInput).playlistId
-      : parseYoutubeInput(mediaDraft.youtubeInput).videoId);
-
-  const canSaveAgeHub =
-    ageHubDraft.title.trim() &&
-    (ageHubDraft.contentType === 'playlist'
-      ? parseYoutubeInput(ageHubDraft.youtubeInput).playlistId
-      : parseYoutubeInput(ageHubDraft.youtubeInput).videoId);
-
   const itemToEditDraft = (item, isExerciseTab) => {
     const youtubeInput = item.playlistId
       ? `https://www.youtube.com/playlist?list=${item.playlistId}`
@@ -322,24 +331,33 @@ export function ContentLibraryManager() {
       duration: item.duration ?? '',
       moodTag: item.moodTag ?? '',
       natureChip: item.natureChip ?? 'rain',
+      coverUrl: item.coverUrl ?? '',
+      sourceType: item.videoUrl ? 'upload' : 'youtube',
+      videoUrl: item.videoUrl ?? '',
       isAgeHub: isAgeHubTab(tab),
       isExercise: isExerciseTab,
     };
   };
 
-  const startEdit = () => {
-    if (!preview) return;
-    setEditDraft(itemToEditDraft(preview, isExercises));
+  const startEdit = (item) => {
+    if (!item) return;
+    setSelectedId(item.id);
+    setEditDraft(itemToEditDraft(item, isExercises));
     setEditing(true);
     setShowAddForm(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSaveEdit = async () => {
     if (!preview || !editDraft) return;
+    if (!editDraft.title?.trim()) {
+      showError('العنوان مطلوب.');
+      return;
+    }
     if (isAgeHub) {
       const result = buildAgeHubItemPatchFromDraft(editDraft, { isExercise: isExercises });
       if (result.error) {
-        showMock(result.error);
+        showError(result.error);
         return;
       }
       const stateKey = getAgeHubStateKey(tab);
@@ -365,7 +383,7 @@ export function ContentLibraryManager() {
     } else {
       const result = buildMediaItemPatchFromDraft(editDraft, tab);
       if (result.error) {
-        showMock(result.error);
+        showError(result.error);
         return;
       }
       const nextState = updateMediaItemInState(state, tab, preview.id, result.patch);
@@ -396,12 +414,6 @@ export function ContentLibraryManager() {
     setEditing(false);
     showMock('تمت إعادة البيانات الافتراضية');
   };
-
-  const canSaveEdit =
-    editDraft?.title?.trim() &&
-    (editDraft.contentType === 'playlist'
-      ? parseYoutubeInput(editDraft.youtubeInput).playlistId
-      : parseYoutubeInput(editDraft.youtubeInput).videoId);
 
   const ageHubSectionTitle = isExercises
     ? `تمارين — ${selectedAgeGroup?.title}`
@@ -459,8 +471,8 @@ export function ContentLibraryManager() {
               {showAddForm
                 ? 'إلغاء'
                 : isExercises
-                  ? 'إضافة تمرين + YouTube'
-                  : 'إضافة نشاط + YouTube'}
+                  ? 'إضافة تمرين'
+                  : 'إضافة نشاط'}
             </button>
             <button
               type="button"
@@ -495,32 +507,16 @@ export function ContentLibraryManager() {
                   onChange={(e) => setAgeHubDraft((d) => ({ ...d, title: e.target.value }))}
                 />
               </label>
-              <label className="cms-field">
-                نوع YouTube
-                <select
-                  value={ageHubDraft.contentType}
-                  onChange={(e) =>
-                    setAgeHubDraft((d) => ({ ...d, contentType: e.target.value }))
-                  }
-                >
-                  <option value="video">فيديو / Short</option>
-                  <option value="playlist">Playlist</option>
-                </select>
-              </label>
-              <label className="cms-field">
-                رابط YouTube (يدعم shorts · youtu.be · playlist)
-                <input
-                  type="text"
-                  dir="ltr"
-                  placeholder={
-                    isExercises
-                      ? 'https://youtube.com/shorts/… أو youtu.be/…'
-                      : 'https://youtube.com/playlist?list=PL…'
-                  }
-                  value={ageHubDraft.youtubeInput}
-                  onChange={(e) => applyYoutubePaste(e.target.value, setAgeHubDraft)}
-                />
-              </label>
+              <MediaVideoSourceFields
+                draft={ageHubDraft}
+                setDraft={setAgeHubDraft}
+                onYoutubeInput={(value) => applyYoutubePaste(value, setAgeHubDraft)}
+                youtubePlaceholder={
+                  isExercises
+                    ? 'https://youtube.com/shorts/… أو youtu.be/…'
+                    : 'https://youtube.com/playlist?list=PL…'
+                }
+              />
               <label className="cms-field">
                 mood (اختياري)
                 <input
@@ -529,14 +525,19 @@ export function ContentLibraryManager() {
                   onChange={(e) => setAgeHubDraft((d) => ({ ...d, moodTag: e.target.value }))}
                 />
               </label>
+              <MediaCoverPick
+                value={ageHubDraft.coverUrl}
+                onChange={(url) => setAgeHubDraft((d) => ({ ...d, coverUrl: url }))}
+                fallbackUrl={youtubeThumbFromInput(ageHubDraft.youtubeInput)}
+              />
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   className="mock-btn mock-btn--primary"
-                  disabled={!canSaveAgeHub}
-                  onClick={handleAddAgeHub}
+                  disabled={saving}
+                  onClick={() => runSave(handleAddAgeHub)}
                 >
-                  {isExercises ? 'حفظ التمرين' : 'حفظ النشاط'}
+                  {saving ? 'جاري الحفظ…' : isExercises ? 'حفظ التمرين' : 'حفظ النشاط'}
                 </button>
                 <button
                   type="button"
@@ -586,26 +587,12 @@ export function ContentLibraryManager() {
               onChange={(e) => setMediaDraft((d) => ({ ...d, title: e.target.value }))}
             />
           </label>
-          <label className="cms-field">
-            نوع YouTube
-            <select
-              value={mediaDraft.contentType}
-              onChange={(e) => setMediaDraft((d) => ({ ...d, contentType: e.target.value }))}
-            >
-              <option value="video">فيديو</option>
-              <option value="playlist">Playlist</option>
-            </select>
-          </label>
-          <label className="cms-field">
-            رابط YouTube أو videoId / playlistId
-            <input
-              type="text"
-              dir="ltr"
-              placeholder="https://www.youtube.com/watch?v=… أو shorts/…"
-              value={mediaDraft.youtubeInput}
-              onChange={(e) => applyYoutubePaste(e.target.value, setMediaDraft)}
-            />
-          </label>
+          <MediaVideoSourceFields
+            draft={mediaDraft}
+            setDraft={setMediaDraft}
+            onYoutubeInput={(value) => applyYoutubePaste(value, setMediaDraft)}
+            youtubePlaceholder="https://www.youtube.com/watch?v=… أو shorts/…"
+          />
           {tab === 'nature' && (
             <label className="cms-field">
               شريحة الطبيعة
@@ -640,14 +627,19 @@ export function ContentLibraryManager() {
               />
             </label>
           </div>
+          <MediaCoverPick
+            value={mediaDraft.coverUrl}
+            onChange={(url) => setMediaDraft((d) => ({ ...d, coverUrl: url }))}
+            fallbackUrl={youtubeThumbFromInput(mediaDraft.youtubeInput)}
+          />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               type="button"
               className="mock-btn mock-btn--primary"
-              disabled={!canSaveMedia}
-              onClick={handleAddMedia}
+              disabled={saving}
+              onClick={() => runSave(handleAddMedia)}
             >
-              حفظ
+              {saving ? 'جاري الحفظ…' : 'حفظ'}
             </button>
             <button
               type="button"
@@ -663,7 +655,7 @@ export function ContentLibraryManager() {
         </AdminCard>
       )}
 
-      <div className="grid-2">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <AdminCard>
           <SectionHeader title={isAgeHub ? ageHubSectionTitle : `عناصر — ${tabMeta?.title}`} />
           {previewList.length === 0 ? (
@@ -692,7 +684,11 @@ export function ContentLibraryManager() {
                         {item.title}
                       </td>
                       <td>
-                        <code style={{ fontSize: '0.68rem' }}>{item.videoId ?? '—'}</code>
+                        {item.videoUrl ? (
+                          <span className="text-caption">ملف مرفوع</span>
+                        ) : (
+                          <code style={{ fontSize: '0.68rem' }}>{item.videoId ?? '—'}</code>
+                        )}
                       </td>
                       <td>
                         <code style={{ fontSize: '0.62rem' }}>
@@ -700,7 +696,19 @@ export function ContentLibraryManager() {
                         </code>
                       </td>
                       {tab === 'nature' && <td>{item.natureChip ?? '—'}</td>}
-                      <td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button
+                          type="button"
+                          className="mock-btn mock-btn--outline"
+                          style={{ padding: '4px 8px', marginInlineEnd: 6 }}
+                          aria-label="تعديل"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEdit(item);
+                          }}
+                        >
+                          <Pencil size={14} />
+                        </button>
                         <button
                           type="button"
                           className="mock-btn mock-btn--outline"
@@ -723,16 +731,9 @@ export function ContentLibraryManager() {
           )}
         </AdminCard>
 
-        <AdminCard>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <SectionHeader title={editing ? 'تعديل العنصر' : 'معاينة'} />
-            {preview && !editing && (
-              <button type="button" className="mock-btn mock-btn--outline" onClick={startEdit}>
-                <Pencil size={14} /> تعديل
-              </button>
-            )}
-          </div>
-          {editing && editDraft ? (
+        {editing && editDraft && (
+        <AdminCard style={{ order: -1 }}>
+          <SectionHeader title={`تعديل — ${preview?.title ?? ''}`} />
             <>
               <label className="cms-field">
                 العنوان
@@ -741,26 +742,12 @@ export function ContentLibraryManager() {
                   onChange={(e) => setEditDraft((d) => ({ ...d, title: e.target.value }))}
                 />
               </label>
-              <label className="cms-field">
-                نوع YouTube
-                <select
-                  value={editDraft.contentType}
-                  onChange={(e) =>
-                    setEditDraft((d) => ({ ...d, contentType: e.target.value }))
-                  }
-                >
-                  <option value="video">فيديو / Short</option>
-                  <option value="playlist">Playlist</option>
-                </select>
-              </label>
-              <label className="cms-field">
-                رابط YouTube
-                <input
-                  dir="ltr"
-                  value={editDraft.youtubeInput}
-                  onChange={(e) => applyYoutubePaste(e.target.value, setEditDraft)}
-                />
-              </label>
+              <MediaVideoSourceFields
+                draft={editDraft}
+                setDraft={setEditDraft}
+                onYoutubeInput={(value) => applyYoutubePaste(value, setEditDraft)}
+                youtubePlaceholder="https://www.youtube.com/watch?v=…"
+              />
               {!editDraft.isAgeHub && tab === 'nature' && (
                 <label className="cms-field">
                   شريحة الطبيعة
@@ -809,14 +796,19 @@ export function ContentLibraryManager() {
                   />
                 </label>
               )}
+              <MediaCoverPick
+                value={editDraft.coverUrl}
+                onChange={(url) => setEditDraft((d) => ({ ...d, coverUrl: url }))}
+                fallbackUrl={youtubeThumbFromInput(editDraft.youtubeInput)}
+              />
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   className="mock-btn mock-btn--primary"
-                  disabled={!canSaveEdit}
-                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  onClick={() => runSave(handleSaveEdit)}
                 >
-                  حفظ التعديل
+                  {saving ? 'جاري الحفظ…' : 'حفظ التعديل'}
                 </button>
                 <button
                   type="button"
@@ -830,67 +822,8 @@ export function ContentLibraryManager() {
                 </button>
               </div>
             </>
-          ) : preview ? (
-            <>
-              {preview.videoId && (
-                <img
-                  className="library-preview-thumb"
-                  src={getYoutubeThumbnailUrl(preview.videoId)}
-                  alt=""
-                />
-              )}
-              <h4 style={{ margin: '0 0 8px' }}>{preview.title}</h4>
-              {isAgeHub && (
-                <p className="text-caption">
-                  {selectedAgeGroup?.title} · التطبيق:{' '}
-                  {isExercises ? 'الرياضة' : 'الأنشطة'} &gt; MediaAgeHub (
-                  <code>{tabMeta?.appMenuId}</code>)
-                </p>
-              )}
-              {!isAgeHub && (
-                <p className="text-caption">
-                  التطبيق: <code>{tabMeta?.appMenuId}</code>
-                </p>
-              )}
-              {preview.videoId && (
-                <p>
-                  <strong>videoId:</strong> <code>{preview.videoId}</code>
-                </p>
-              )}
-              {preview.playlistId && (
-                <p>
-                  <strong>playlistId:</strong>
-                  <br />
-                  <code style={{ fontSize: '0.72rem', wordBreak: 'break-all' }}>
-                    {preview.playlistId}
-                  </code>
-                </p>
-              )}
-              {preview.duration && (
-                <p>
-                  <strong>المدة:</strong> {preview.duration}
-                </p>
-              )}
-              {preview.moodTag && (
-                <p>
-                  <strong>mood:</strong> {preview.moodTag}
-                </p>
-              )}
-              {preview.natureChip && (
-                <p>
-                  <strong>شريحة:</strong> {preview.natureChip}
-                </p>
-              )}
-              {preview.linkStatus && (
-                <StatusBadge tone={linkTone[preview.linkStatus] ?? 'muted'}>
-                  {preview.linkStatus}
-                </StatusBadge>
-              )}
-            </>
-          ) : (
-            <EmptyState title="لا معاينة" description="اختر عنصراً من الجدول." compact />
-          )}
         </AdminCard>
+        )}
       </div>
     </div>
   );

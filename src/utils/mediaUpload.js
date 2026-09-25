@@ -15,33 +15,10 @@ export function mockFileFromInput(file) {
   };
 }
 
-/** محاكاة استخراج صورة + صوت من شريحة PowerPoint واحدة */
-export function mockPptxSlideBundleFromInput(file) {
-  if (!file) return null;
-  const pptx = mockFileFromInput(file);
-  if (!pptx) return null;
-
-  const base = file.name.replace(/\.pptx$/i, '') || 'slide';
-  const imageFile = {
-    name: `${base}_slide.png`,
-    sizeMock: '420 KB',
-    notUploaded: true,
-    extractedFrom: file.name,
-    source: 'pptx',
-  };
-  const audioFile = {
-    name: `${base}_narration.m4a`,
-    sizeMock: '1.1 MB',
-    notUploaded: true,
-    extractedFrom: file.name,
-    source: 'pptx',
-  };
-
-  return { pptxFile: pptx, imageFile, audioFile };
-}
-
 export function slideMediaReady(draft) {
-  if (draft?.pptxFile && draft?.imageFile && draft?.audioFile) return true;
+  if (draft?.uploadMode === 'pptx') {
+    return Boolean(draft.pptxSlides?.some((s) => s.imageFile || s.audioFile));
+  }
   return Boolean(draft?.imageFile || draft?.audioFile);
 }
 

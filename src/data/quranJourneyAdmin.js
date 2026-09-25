@@ -100,21 +100,20 @@ export function seedQuranJourneySessions() {
 }
 
 /**
- * تحميل 120 جلسة عند أول فتح للختمة فقط.
- * لا يُعاد إدراج جلسات محذوفة — حتى يعمل «إضافة جلسة» بعد الحذف.
+ * يكمّل خانات الختمة الـ 120 الناقصة بدون المساس بالجلسات المحفوظة (السحابة أو المحلية).
  */
 export function ensureKhatmahPlanSessions(sessions, khatmah) {
-  const existingForKhatmah = sessions.filter((s) => s.khatmah === khatmah);
-  if (existingForKhatmah.length > 0) {
-    return sessions;
-  }
-
   const byKey = new Map(sessions.map((s) => [`${s.khatmah}-${s.session}`, s]));
+  let added = false;
 
   buildKhatmahPlanRows(khatmah).forEach((planRow) => {
     const key = `${khatmah}-${planRow.sessionNumber}`;
+    if (byKey.has(key)) return;
     byKey.set(key, buildPlanSessionRow(khatmah, planRow));
+    added = true;
   });
+
+  if (!added) return sessions;
 
   return Array.from(byKey.values()).sort((a, b) => a.khatmah - b.khatmah || a.session - b.session);
 }
@@ -246,23 +245,47 @@ export function createNewSessionForDay(sessions, khatmah, dayIndex, draft = {}) 
   }
 
   const daily = dailySessionsForKhatmah(khatmah);
-  const inDay = sessions.filter((s) => s.khatmah === khatmah && s.dayIndex === dayIndex);
+  const inDay = sessions
+    .filter((s) => s.khatmah === khatmah && s.dayIndex === dayIndex)
+    .sort((a, b) => a.session - b.session);
 
-  if (inDay.length >= daily) {
-    return { error: `لا يمكن إضافة أكثر من ${daily} جلسات في اليوم.` };
+  const emptySlot = inDay.find((s) => !s.storagePath);
+  if (emptySlot) {
+    const fileName = audioFile.name;
+    return {
+      session: {
+        ...emptySlot,
+        title: titleInput?.trim() || emptySlot.title,
+        surahRange: rangeInput?.trim() || emptySlot.surahRange,
+        durationMinutes:
+          Number(durationInput) > 0 ? Number(durationInput) : emptySlot.durationMinutes,
+        audioFile,
+        file: fileName,
+        audioPath: `assets/audio/quran/${quranOverview.activeReciterId}/half_hizb/${fileName}`,
+        status: 'موجود',
+        statusKey: 'ok',
+      },
+    };
   }
 
-  const maxSession = sessions
-    .filter((s) => s.khatmah === khatmah)
-    .reduce((m, s) => Math.max(m, s.session), 0);
-  const nextSession = maxSession + 1;
-
-  if (nextSession > SESSIONS_PER_KHATMAH) {
-    return { error: `اكتملت ${SESSIONS_PER_KHATMAH} جلسة لهذه الختمة.` };
+  const firstInDay = (dayIndex - 1) * daily + 1;
+  const lastInDay = Math.min(dayIndex * daily, SESSIONS_PER_KHATMAH);
+  const taken = new Set(inDay.map((s) => s.session));
+  let nextSession = null;
+  for (let n = firstInDay; n <= lastInDay; n += 1) {
+    if (!taken.has(n)) {
+      nextSession = n;
+      break;
+    }
   }
 
-  const sessionInDay =
-    inDay.length === 0 ? 1 : Math.max(...inDay.map((s) => s.sessionInDay)) + 1;
+  if (nextSession == null) {
+    return {
+      error: 'كل جلسات هذا اليوم عليها صوت — اختاري جلسة من الجدول لاستبدال صوتها.',
+    };
+  }
+
+  const sessionInDay = nextSession - firstInDay + 1;
 
   const sample = getManifestSample(nextSession);
   const title = titleInput?.trim() || buildSessionTitle(nextSession);
@@ -273,7 +296,7 @@ export function createNewSessionForDay(sessions, khatmah, dayIndex, draft = {}) 
 
   return {
     session: {
-      id: `k${String(khatmah).padStart(2, '0')}_s${String(nextSession).padStart(3, '0')}_new_${Date.now()}`,
+      id: `k${String(khatmah).padStart(2, '0')}_s${String(nextSession).padStart(3, '0')}`,
       khatmah,
       session: nextSession,
       dayIndex,

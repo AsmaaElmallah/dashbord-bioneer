@@ -1,6 +1,5 @@
-import { Plus, Trash2, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { SlideMediaSourcePick } from '../SlideMediaSourcePick';
 import { slideMediaReady } from '../../utils/mediaUpload';
 import { AdminCard } from '../AdminCard';
@@ -19,7 +18,6 @@ import {
   upsertCurriculumSlide,
 } from '../../services/supabase/curriculumSlidesService';
 import {
-  attachSlideMedia,
   buildLessonDayNodes,
   buildLessonJourneyNodes,
   createNewSlideForDay,
@@ -95,6 +93,14 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
       return { ok: false };
     }
 
+    const fakeMedia = [slide.imageFile, slide.audioFile].some(
+      (f) => f && !f.rawFile && !f.uploaded,
+    );
+    if (fakeMedia) {
+      showError('الصورة أو الصوت لم يُرفعا فعلياً — اختاري «ملفات منفصلة» وارفعي PNG و m4a.');
+      return { ok: false };
+    }
+
     let next = { ...slide };
     if (publish) next = { ...next, publishStatus: 'منشور' };
 
@@ -141,12 +147,13 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
   const [view, setView] = useState('journey');
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [selectedSlideId, setSelectedSlideId] = useState(null);
   const [jumpLesson, setJumpLesson] = useState('1');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(null);
   const [addDraft, setAddDraft] = useState({
     uploadMode: 'pptx',
     pptxFile: null,
+    pptxSlides: [],
     imageFile: null,
     audioFile: null,
     title: '',
@@ -196,9 +203,6 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
     return getSlidesForLessonDay(slides, selectedLesson, selectedDay);
   }, [slides, selectedLesson, selectedDay]);
 
-  const selectedSlide =
-    daySlides.find((s) => s.id === selectedSlideId) ?? daySlides[0] ?? null;
-
   const breadcrumbs = useMemo(() => {
     const items = [{ id: 'journey', label: trackConfig.breadcrumbJourney, view: 'journey' }];
     if (selectedLesson) {
@@ -226,7 +230,6 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
       setView('journey');
       setSelectedLesson(null);
       setSelectedDay(null);
-      setSelectedSlideId(null);
       setShowAddForm(false);
       return;
     }
@@ -234,7 +237,6 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
       setView('days');
       setSelectedLesson(item.lesson);
       setSelectedDay(null);
-      setSelectedSlideId(null);
       setShowAddForm(false);
       return;
     }
@@ -250,19 +252,13 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
     setSlides((prev) => ensureLessonSlides(prev, trackConfig, lesson));
     setSelectedLesson(lesson);
     setSelectedDay(null);
-    setSelectedSlideId(null);
     setView('days');
     showMock(`تم تحميل شرائح الدرس ${lesson}`);
   };
 
   const openDay = (node) => {
     const { lesson, dayIndexInLesson } = node.payload ?? {};
-    setSlides((prev) => {
-      const next = ensureLessonSlides(prev, trackConfig, lesson);
-      const first = getSlidesForLessonDay(next, lesson, dayIndexInLesson)[0];
-      setSelectedSlideId(first?.id ?? null);
-      return next;
-    });
+    setSlides((prev) => ensureLessonSlides(prev, trackConfig, lesson));
     setSelectedLesson(lesson);
     setSelectedDay(dayIndexInLesson);
     setView('dayDetail');
@@ -288,6 +284,7 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
     setAddDraft({
       uploadMode: 'pptx',
       pptxFile: null,
+      pptxSlides: [],
       imageFile: null,
       audioFile: null,
       title: '',
@@ -297,31 +294,56 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
   };
 
   const handleSaveNewSlide = async () => {
-    const result = createNewSlideForDay(slides, trackConfig, selectedLesson, selectedDay, {
-      ...addDraft,
-      packageId: addDraft.packageId || trackConfig.defaultPackageId(selectedLesson),
-    });
-    if (result.error) {
-      showMock(result.error);
+    const packageId = addDraft.packageId || trackConfig.defaultPackageId(selectedLesson);
+    const fromPptx = addDraft.uploadMode === 'pptx';
+    const drafts = fromPptx
+      ? addDraft.pptxSlides
+          .filter((s) => s.imageFile || s.audioFile)
+          .map((s) => ({
+            ...addDraft,
+            packageId,
+            imageFile: s.imageFile,
+            audioFile: s.audioFile,
+            title: addDraft.title.trim() ? `${addDraft.title.trim()} ${s.number}` : '',
+          }))
+      : [{ ...addDraft, packageId }];
+
+    let working = slides;
+    let savedCount = 0;
+    setSaveProgress({ done: 0, total: drafts.length });
+    try {
+      for (const draft of drafts) {
+        const result = createNewSlideForDay(working, trackConfig, selectedLesson, selectedDay, draft);
+        if (result.error) {
+          showError(result.error);
+          break;
+        }
+        const newSlide = { ...result.slide, publishStatus: 'منشور' };
+        const saved = await persistSlide(newSlide, { publish: true });
+        if (!saved.ok) break;
+
+        const stored = saved.slide ?? newSlide;
+        working = [...working, stored];
+        setSlides((prev) => [...prev, stored]);
+        savedCount += 1;
+        setSaveProgress({ done: savedCount, total: drafts.length });
+      }
+    } finally {
+      setSaveProgress(null);
+    }
+
+    if (savedCount === 0) return;
+    if (savedCount < drafts.length) {
+      showError(`تم حفظ ${savedCount} من ${drafts.length} شريحة فقط — أعيدي رفع الملف للباقي.`);
       return;
     }
-
-    const withPublish = { ...result.slide, publishStatus: result.slide.publishStatus ?? 'مسودة' };
-    setSlides((prev) => [...prev, withPublish]);
-    setSelectedSlideId(withPublish.id);
     setShowAddForm(false);
     resetAddDraft();
-
-    const saved = await persistSlide(withPublish);
-    if (saved.ok) {
-      showSuccess(isSupabaseEnabled ? 'تم حفظ الشريحة على السحابة' : 'تمت إضافة الشريحة');
-    }
-  };
-
-  const handlePublishSelected = async () => {
-    if (!selectedSlide) return;
-    const saved = await persistSlide(selectedSlide, { publish: true });
-    if (saved.ok) showSuccess('تم نشر الشريحة — ستظهر في التطبيق');
+    showSuccess(
+      isSupabaseEnabled
+        ? `تم حفظ ونشر ${savedCount} شريحة — ستظهر في التطبيق`
+        : `تمت إضافة ${savedCount} شريحة`,
+    );
   };
 
   const handleDeleteSlide = async (id) => {
@@ -338,20 +360,7 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
       }
     }
     setSlides((prev) => prev.filter((s) => s.id !== id));
-    if (selectedSlideId === id) setSelectedSlideId(null);
     showSuccess('تم حذف الشريحة');
-  };
-
-  const patchSelectedSlide = async (partial) => {
-    if (!selectedSlideId) return;
-    const updated = attachSlideMedia(
-      slides.find((s) => s.id === selectedSlideId),
-      partial,
-    );
-    setSlides((prev) => prev.map((s) => (s.id === selectedSlideId ? updated : s)));
-    if (isSupabaseEnabled && (partial.imageFile?.rawFile || partial.audioFile?.rawFile)) {
-      await persistSlide(updated);
-    }
   };
 
   return (
@@ -363,10 +372,10 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
           {cloudLoading
             ? 'جاري تحميل الشرائح من Supabase…'
             : needsLogin
-              ? 'سجّلي الدخول لحفظ ونشر الشرائح على السحابة (تظهر في التطبيق عند «منشور»).'
+              ? 'سجّلي الدخول لحفظ الشرائح على السحابة.'
               : cloudSynced
-                ? 'متصل بالسحابة — الحفظ/النشر يذهب لـ curriculum_slides'
-                : 'متصل — لا شرائح على السحابة بعد؛ احفظي ثم انشري لتظهر في التطبيق'}
+                ? 'متصل بالسحابة — أي شريحة تحفظيها تُنشر في التطبيق مباشرة'
+                : 'متصل — لا شرائح على السحابة بعد؛ أي شريحة تحفظيها تُنشر في التطبيق مباشرة'}
         </InfoBanner>
       )}
 
@@ -526,7 +535,7 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
       )}
 
       {view === 'dayDetail' && selectedLesson && selectedDay && (
-        <div className="grid-2 quran-day-detail">
+        <div className="quran-day-detail">
           <AdminCard>
             <div className="quran-day-detail__head">
               <SectionHeader
@@ -569,37 +578,42 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
                       ...d,
                       uploadMode,
                       ...(uploadMode === 'separate'
-                        ? { pptxFile: null }
+                        ? { pptxFile: null, pptxSlides: [] }
                         : { imageFile: null, audioFile: null }),
                     }))
                   }
                   imageFile={addDraft.imageFile}
                   audioFile={addDraft.audioFile}
                   pptxFile={addDraft.pptxFile}
+                  pptxSlides={addDraft.pptxSlides}
                   onImagePick={(imageFile) =>
-                    setAddDraft((d) => ({ ...d, imageFile, uploadMode: 'separate', pptxFile: null }))
+                    setAddDraft((d) => ({
+                      ...d,
+                      imageFile,
+                      uploadMode: 'separate',
+                      pptxFile: null,
+                      pptxSlides: [],
+                    }))
                   }
                   onAudioPick={(audioFile) =>
-                    setAddDraft((d) => ({ ...d, audioFile, uploadMode: 'separate', pptxFile: null }))
+                    setAddDraft((d) => ({
+                      ...d,
+                      audioFile,
+                      uploadMode: 'separate',
+                      pptxFile: null,
+                      pptxSlides: [],
+                    }))
                   }
-                  onPptxPick={(bundle) => {
-                    if (!bundle) {
-                      setAddDraft((d) => ({
-                        ...d,
-                        pptxFile: null,
-                        imageFile: null,
-                        audioFile: null,
-                      }));
-                      return;
-                    }
+                  onPptxPick={(bundle) =>
                     setAddDraft((d) => ({
                       ...d,
                       uploadMode: 'pptx',
-                      pptxFile: bundle.pptxFile,
-                      imageFile: bundle.imageFile,
-                      audioFile: bundle.audioFile,
-                    }));
-                  }}
+                      pptxFile: bundle?.pptxFile ?? null,
+                      pptxSlides: bundle?.slides ?? [],
+                      imageFile: null,
+                      audioFile: null,
+                    }))
+                  }
                 />
                 <label className="cms-field">
                   packageId
@@ -631,9 +645,18 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
                     type="button"
                     className="mock-btn mock-btn--primary"
                     onClick={handleSaveNewSlide}
-                    disabled={!slideMediaReady(addDraft)}
+                    disabled={!slideMediaReady(addDraft) || Boolean(saveProgress)}
                   >
-                    حفظ الشريحة
+                    {saveProgress ? (
+                      <>
+                        <Loader2 size={16} className="spin" aria-hidden />
+                        جاري الحفظ {saveProgress.done} / {saveProgress.total}
+                      </>
+                    ) : addDraft.uploadMode === 'pptx' && addDraft.pptxSlides.length > 1 ? (
+                      `حفظ ونشر ${addDraft.pptxSlides.filter((s) => s.imageFile || s.audioFile).length} شريحة`
+                    ) : (
+                      'حفظ الشريحة'
+                    )}
                   </button>
                   <button
                     type="button"
@@ -670,12 +693,7 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
                     </tr>
                   ) : (
                     daySlides.map((s) => (
-                      <tr
-                        key={s.id}
-                        className={selectedSlideId === s.id ? 'selected' : ''}
-                        onClick={() => setSelectedSlideId(s.id)}
-                        style={{ cursor: 'pointer' }}
-                      >
+                      <tr key={s.id}>
                         <td>{s.slideIndex}</td>
                         <td>{s.globalIndex}</td>
                         <td>
@@ -697,10 +715,7 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
                             className="mock-btn mock-btn--outline"
                             style={{ padding: '4px 8px' }}
                             aria-label="حذف"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteSlide(s.id);
-                            }}
+                            onClick={() => handleDeleteSlide(s.id)}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -711,115 +726,6 @@ export function CurriculumJourneyExplorer({ trackConfig }) {
                 </tbody>
               </table>
             </AdminTableContainer>
-          </AdminCard>
-
-          <AdminCard>
-            <SectionHeader title="تفاصيل الشريحة" />
-            {selectedSlide ? (
-              <>
-                <h4 style={{ margin: '0 0 8px', color: trackConfig.accentVar }}>
-                  {selectedSlide.title ?? `شريحة ${selectedSlide.slideIndex}`}
-                </h4>
-                <p>
-                  <strong>عالمي #{selectedSlide.globalIndex}</strong> — {selectedSlide.packageId}
-                  {selectedSlide.pptxSource && (
-                    <span className="text-caption"> · مصدر: {selectedSlide.pptxSource.name}</span>
-                  )}
-                </p>
-                <SectionHeader title="تحديث الوسائط" />
-                <SlideMediaSourcePick
-                  compact
-                  mode={selectedSlide.mediaUploadMode ?? 'separate'}
-                  onModeChange={(uploadMode) =>
-                    patchSelectedSlide({ mediaUploadMode: uploadMode })
-                  }
-                  imageFile={selectedSlide.imageFile}
-                  audioFile={selectedSlide.audioFile}
-                  pptxFile={selectedSlide.pptxSource}
-                  onImagePick={(imageFile) => {
-                    patchSelectedSlide({
-                      imageFile: imageFile ?? null,
-                      mediaUploadMode: 'separate',
-                      pptxSource: null,
-                    });
-                    if (imageFile) showMock(`صورة: ${imageFile.name}`);
-                  }}
-                  onAudioPick={(audioFile) => {
-                    patchSelectedSlide({
-                      audioFile: audioFile ?? null,
-                      mediaUploadMode: 'separate',
-                      pptxSource: null,
-                    });
-                    if (audioFile) showMock(`صوت: ${audioFile.name}`);
-                  }}
-                  onPptxPick={(bundle) => {
-                    if (!bundle) {
-                      patchSelectedSlide({
-                        pptxSource: null,
-                        imageFile: null,
-                        audioFile: null,
-                        imageStatus: 'ناقص',
-                        audioStatus: 'ناقص',
-                      });
-                      return;
-                    }
-                    patchSelectedSlide({ pptxBundle: bundle });
-                    showMock(`استبدال من PPTX: ${bundle.pptxFile.name}`);
-                  }}
-                />
-                {selectedSlide.assetPath && (
-                  <p className="text-caption">
-                    <code style={{ wordBreak: 'break-all' }}>{selectedSlide.assetPath}</code>
-                  </p>
-                )}
-                {selectedSlide.audioPath && (
-                  <p className="text-caption">
-                    <code style={{ wordBreak: 'break-all' }}>{selectedSlide.audioPath}</code>
-                  </p>
-                )}
-                <p>
-                  <strong>المدة:</strong> {selectedSlide.durationSec} ث
-                  {' · '}
-                  <strong>النشر:</strong> {selectedSlide.publishStatus ?? 'مسودة'}
-                </p>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                  {isSupabaseEnabled && (
-                    <>
-                      <button
-                        type="button"
-                        className="mock-btn mock-btn--outline"
-                        onClick={() => persistSlide(selectedSlide)}
-                      >
-                        حفظ على السحابة
-                      </button>
-                      <button
-                        type="button"
-                        className="mock-btn mock-btn--primary"
-                        onClick={handlePublishSelected}
-                      >
-                        نشر للتطبيق
-                      </button>
-                    </>
-                  )}
-                  <Link
-                    to={trackConfig.editorSlideLink}
-                    className="mock-btn mock-btn--primary"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    محرر الشريحة
-                  </Link>
-                  <Link
-                    to={trackConfig.editorLessonLink}
-                    className="mock-btn mock-btn--outline"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    منشئ الدرس
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <p className="text-caption">اختر شريحة أو أضف واحدة جديدة.</p>
-            )}
           </AdminCard>
         </div>
       )}

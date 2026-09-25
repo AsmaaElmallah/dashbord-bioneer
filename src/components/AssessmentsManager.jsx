@@ -51,8 +51,7 @@ const emptyQuestionDraft = (testId = 'skills_test') => ({
 });
 
 export function AssessmentsManager() {
-  const { showMock } = useSnackbar();
-  const showError = showMock;
+  const { showMock, showError } = useSnackbar();
   const [tab, setTab] = useState('questions');
   const [state, setState] = useState(() =>
     loadAdminState(ADMIN_STORAGE_KEYS.assessments, buildInitialAssessmentState),

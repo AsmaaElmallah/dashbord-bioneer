@@ -239,7 +239,7 @@ export function createNewSlideForDay(slides, trackConfig, lessonNumber, dayIndex
 
   return {
     slide: {
-      id: `${trackConfig.trackId}_l${lessonNumber}_new_${Date.now()}`,
+      id: `${trackConfig.trackId}_l${lessonNumber}_g${nextGlobal}_${Date.now()}`,
       lesson: lessonNumber,
       globalIndex: nextGlobal,
       slideIndex: slideIndexInLesson,

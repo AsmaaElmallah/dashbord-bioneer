@@ -16,6 +16,7 @@ import { AssessmentsPage } from './pages/AssessmentsPage';
 import { CommunityPage } from './pages/CommunityPage';
 import { TargetingPage } from './pages/TargetingPage';
 import { CmsPage } from './pages/CmsPage';
+import { OnboardingVideosPage } from './pages/OnboardingVideosPage';
 import { AssetsPage } from './pages/AssetsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="community" element={<CommunityPage />} />
             <Route path="targeting" element={<TargetingPage />} />
             <Route path="cms" element={<CmsPage />} />
+            <Route path="onboarding" element={<OnboardingVideosPage />} />
             <Route path="assets" element={<AssetsPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="reports" element={<ReportsPage />} />
