@@ -39,6 +39,19 @@ export const natureChipOptions = [
 ];
 
 /** مطابق لـ parseYoutubeLink في exercises_catalog.dart (قائمة · shorts · youtu.be) */
+/** معرّف فيديو واحد فقط — يقبل روابط watch حتى لو فيها list. */
+export function parseYoutubeVideoId(input) {
+  const raw = (input ?? '').trim();
+  try {
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    const v = url.searchParams.get('v');
+    if (v) return v;
+  } catch {
+    /* not a URL */
+  }
+  return parseYoutubeInput(raw).videoId || '';
+}
+
 export function parseYoutubeInput(input) {
   const raw = (input ?? '').trim();
   if (!raw) return { videoId: '', playlistId: '', error: null };

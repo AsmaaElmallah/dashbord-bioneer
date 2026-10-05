@@ -5,7 +5,7 @@ import { InfoBanner } from '../components/InfoBanner';
 import { PageHeader } from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
 import { useSnackbar } from '../context/SnackbarContext';
-import { parseYoutubeInput } from '../data/contentLibraryAdmin';
+import { parseYoutubeVideoId } from '../data/contentLibraryAdmin';
 import { getYoutubeThumbnailUrl } from '../data/libraryContentEditor';
 import {
   loadOnboardingVideos,
@@ -16,18 +16,6 @@ import {
 } from '../services/supabase/onboardingVideosService';
 
 const ACCEPT = 'video/mp4,video/webm,video/quicktime,video/x-m4v';
-
-function parseYoutubeVideoId(input) {
-  const raw = (input ?? '').trim();
-  try {
-    const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
-    const v = url.searchParams.get('v');
-    if (v) return v;
-  } catch {
-    /* not a URL */
-  }
-  return parseYoutubeInput(raw).videoId || '';
-}
 
 export function OnboardingVideosPage() {
   const { showError, showSuccess } = useSnackbar();

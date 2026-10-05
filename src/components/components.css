@@ -3351,3 +3351,57 @@
     position: static;
   }
 }
+
+/* Library sections */
+.library-section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.whatsapp-phone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.whatsapp-phone__icon {
+  color: #6e5a52;
+  flex-shrink: 0;
+}
+
+.whatsapp-phone__field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid #9a9a9a;
+  border-radius: 10px;
+  padding: 14px 14px 10px;
+  min-width: 150px;
+}
+
+.whatsapp-phone__field--number {
+  min-width: 190px;
+}
+
+.whatsapp-phone__field > span {
+  position: absolute;
+  top: -10px;
+  right: 14px;
+  padding: 0 6px;
+  background: #fff;
+  color: #6e6e6e;
+  font-size: 13px;
+}
+
+.whatsapp-phone__field input,
+.whatsapp-phone__field select {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  color: #222;
+  padding: 0;
+}

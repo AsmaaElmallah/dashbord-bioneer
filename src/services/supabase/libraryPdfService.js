@@ -1,14 +1,9 @@
+import { DEFAULT_AGE_BAND } from '../../data/libraryAgeBands';
 import { isSupabaseEnabled, supabase } from '../../lib/supabaseClient';
 
 const TABLE = 'library_pdfs';
 const PDF_BUCKET = 'library-pdfs';
 const COVER_BUCKET = 'library-covers';
-
-export const libraryPdfCategories = [
-  { id: 'guide', label: 'أدلة التربية' },
-  { id: 'stories', label: 'قصص مصورة' },
-  { id: 'activities', label: 'بطاقات وأنشطة' },
-];
 
 export const libraryPdfPublishOptions = [
   { id: 'draft', label: 'مسودة' },
@@ -16,10 +11,6 @@ export const libraryPdfPublishOptions = [
   { id: 'published', label: 'منشور' },
   { id: 'archived', label: 'مؤرشف' },
 ];
-
-export function categoryLabel(id) {
-  return libraryPdfCategories.find((c) => c.id === id)?.label ?? id;
-}
 
 export function publishLabel(id) {
   return libraryPdfPublishOptions.find((p) => p.id === id)?.label ?? id;
@@ -35,7 +26,7 @@ export function emptyPdfDraft() {
   return {
     id: null,
     title: '',
-    category: 'guide',
+    ageBand: DEFAULT_AGE_BAND,
     tagLabel: '',
     description: '',
     pageCount: '',
@@ -52,7 +43,7 @@ export function rowToPdf(row) {
   return {
     id: row.id,
     title: row.title,
-    category: row.category,
+    ageBand: row.age_band ?? DEFAULT_AGE_BAND,
     tagLabel: row.tag_label ?? '',
     description: row.description ?? '',
     pageCount: row.page_count ?? '',
@@ -72,7 +63,7 @@ export function pdfToRow(pdf) {
   return {
     id: pdf.id || `pdf_${Date.now()}`,
     title: pdf.title.trim(),
-    category: pdf.category,
+    age_band: pdf.ageBand || DEFAULT_AGE_BAND,
     tag_label: pdf.tagLabel.trim(),
     description: pdf.description.trim(),
     page_count: Number.isFinite(pages) && pages > 0 ? pages : null,
@@ -171,6 +162,9 @@ export function translatePdfError(message) {
   }
   if (m.includes('relation') && m.includes('library_pdfs')) {
     return 'جدول library_pdfs غير موجود — شغّلي migration مكتبة الـ PDF أولاً.';
+  }
+  if (m.includes('age_band')) {
+    return 'عمود الفئة العمرية غير موجود — شغّلي migration 20260526100021_library_age_sections.sql في SQL Editor.';
   }
   if (m.includes('library_pdfs_file_check')) {
     return 'ارفعي ملف الـ PDF قبل النشر.';

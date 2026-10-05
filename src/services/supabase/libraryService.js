@@ -174,15 +174,33 @@ function buildAgeHubGroups(groupRows, itemRows, hubType) {
     .filter((g) => g.hub_type === hubType)
     .sort((a, b) => a.sort_order - b.sort_order);
 
-  const groups = remoteRows.length
-    ? remoteRows.map((g) => ({
+  const remoteById = Object.fromEntries(
+    remoteRows.map((g) => [groupIdFromDb(g.id, hubType), g]),
+  );
+  const defaults = defaultAgeHubGroups(hubType);
+  const defaultIds = new Set(defaults.map((g) => g.id));
+
+  const groups = [
+    ...defaults.map((g) => {
+      const remote = remoteById[g.id];
+      if (!remote) return g;
+      return {
+        ...g,
+        title: remote.title ?? g.title,
+        subtitle: remote.subtitle ?? g.subtitle,
+        parentNote: remote.parent_note ?? g.parentNote,
+      };
+    }),
+    ...remoteRows
+      .filter((g) => !defaultIds.has(groupIdFromDb(g.id, hubType)))
+      .map((g) => ({
         id: groupIdFromDb(g.id, hubType),
         title: g.title,
         subtitle: g.subtitle ?? '',
         parentNote: g.parent_note ?? '',
         items: [],
-      }))
-    : defaultAgeHubGroups(hubType);
+      })),
+  ];
 
   const groupMap = Object.fromEntries(groups.map((g) => [groupIdToDb(g.id, hubType), g]));
 

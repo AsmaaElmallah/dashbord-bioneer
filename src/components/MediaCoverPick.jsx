@@ -7,7 +7,12 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPT = 'image/png,image/jpeg,image/webp';
 
 /** صورة خلفية للمقطع — تُرفع فوراً إلى library-covers وتُعيد الرابط العام. */
-export function MediaCoverPick({ value, onChange, fallbackUrl }) {
+export function MediaCoverPick({
+  value,
+  onChange,
+  fallbackUrl,
+  label = 'صورة الخلفية (تظهر في التطبيق قبل تشغيل الفيديو)',
+}) {
   const { showError, showSuccess } = useSnackbar();
   const [uploading, setUploading] = useState(false);
 
@@ -31,14 +36,14 @@ export function MediaCoverPick({ value, onChange, fallbackUrl }) {
       return;
     }
     onChange(data.url);
-    showSuccess('تم رفع صورة الخلفية');
+    showSuccess('تم رفع الصورة');
   };
 
   const shown = value || fallbackUrl;
 
   return (
     <div className="cms-field media-cover-pick">
-      <span>صورة الخلفية (تظهر في التطبيق قبل تشغيل الفيديو)</span>
+      <span>{label}</span>
       <div className="media-cover-pick__row">
         <div className={`media-cover-pick__thumb ${shown ? '' : 'media-cover-pick__thumb--empty'}`}>
           {shown ? <img src={shown} alt="" /> : <ImagePlus size={22} />}

@@ -9,7 +9,13 @@ import {
 const ACCEPT = 'video/mp4,video/webm,video/quicktime,video/x-m4v';
 
 /** مصدر الفيديو: رابط YouTube أو ملف فيديو يُرفع إلى library-videos. */
-export function MediaVideoSourceFields({ draft, setDraft, onYoutubeInput, youtubePlaceholder }) {
+export function MediaVideoSourceFields({
+  draft,
+  setDraft,
+  onYoutubeInput,
+  youtubePlaceholder,
+  allowPlaylist = true,
+}) {
   const { showError, showSuccess } = useSnackbar();
   const [uploading, setUploading] = useState(false);
   const sourceType = draft.sourceType ?? 'youtube';
@@ -59,18 +65,20 @@ export function MediaVideoSourceFields({ draft, setDraft, onYoutubeInput, youtub
 
       {sourceType === 'youtube' ? (
         <>
+          {allowPlaylist && (
+            <label className="cms-field">
+              نوع YouTube
+              <select
+                value={draft.contentType}
+                onChange={(e) => setDraft((d) => ({ ...d, contentType: e.target.value }))}
+              >
+                <option value="video">فيديو / Short</option>
+                <option value="playlist">Playlist</option>
+              </select>
+            </label>
+          )}
           <label className="cms-field">
-            نوع YouTube
-            <select
-              value={draft.contentType}
-              onChange={(e) => setDraft((d) => ({ ...d, contentType: e.target.value }))}
-            >
-              <option value="video">فيديو / Short</option>
-              <option value="playlist">Playlist</option>
-            </select>
-          </label>
-          <label className="cms-field">
-            رابط YouTube (يدعم shorts · youtu.be · playlist)
+            {allowPlaylist ? 'رابط YouTube (يدعم shorts · youtu.be · playlist)' : 'رابط فيديو YouTube'}
             <input
               type="text"
               dir="ltr"

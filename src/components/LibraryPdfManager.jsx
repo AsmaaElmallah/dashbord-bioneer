@@ -9,13 +9,12 @@ import { SectionHeader } from './SectionHeader';
 import { StatusBadge } from './StatusBadge';
 import { useAuth } from '../context/AuthContext';
 import { useSnackbar } from '../context/SnackbarContext';
+import { ageBandLabel, libraryAgeBands } from '../data/libraryAgeBands';
 import { isSupabaseEnabled } from '../lib/supabaseClient';
 import {
-  categoryLabel,
   deleteLibraryPdf,
   emptyPdfDraft,
   formatBytes,
-  libraryPdfCategories,
   libraryPdfPublishOptions,
   listLibraryPdfs,
   pdfToRow,
@@ -65,7 +64,7 @@ export function LibraryPdfManager() {
   }, [reload]);
 
   const visible = useMemo(
-    () => (filter === 'all' ? items : items.filter((p) => p.category === filter)),
+    () => (filter === 'all' ? items : items.filter((p) => p.ageBand === filter)),
     [items, filter],
   );
 
@@ -165,7 +164,7 @@ export function LibraryPdfManager() {
   if (!isSupabaseEnabled) {
     return (
       <AdminCard>
-        <SectionHeader title="ملفات PDF — تبويب المكتبة في التطبيق" />
+        <SectionHeader title="كتب PDF" />
         <InfoBanner tone="warning">فعّلي Supabase في ملف .env لإدارة ملفات المكتبة ورفعها.</InfoBanner>
       </AdminCard>
     );
@@ -175,7 +174,7 @@ export function LibraryPdfManager() {
     <div className="page-stack">
       <AdminCard>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <SectionHeader title="ملفات PDF — تبويب المكتبة في التطبيق" />
+          <SectionHeader title="كتب PDF" />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" className="mock-btn mock-btn--outline" onClick={reload}>
               <RefreshCw size={14} /> تحديث
@@ -190,10 +189,10 @@ export function LibraryPdfManager() {
         </p>
         <div className="filters-row">
           <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="all">كل التصنيفات</option>
-            {libraryPdfCategories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
+            <option value="all">كل الأعمار</option>
+            {libraryAgeBands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.label}
               </option>
             ))}
           </select>
@@ -255,11 +254,11 @@ export function LibraryPdfManager() {
               </label>
               <div className="grid-2" style={{ gap: 12 }}>
                 <label className="cms-field">
-                  التصنيف (فلتر التطبيق)
-                  <select value={draft.category} onChange={(e) => patch({ category: e.target.value })}>
-                    {libraryPdfCategories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
+                  الفئة العمرية
+                  <select value={draft.ageBand} onChange={(e) => patch({ ageBand: e.target.value })}>
+                    {libraryAgeBands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.label}
                       </option>
                     ))}
                   </select>
@@ -368,7 +367,7 @@ export function LibraryPdfManager() {
                 <tr>
                   <th>الغلاف</th>
                   <th>العنوان</th>
-                  <th>التصنيف</th>
+                  <th>العمر</th>
                   <th>الصفحات</th>
                   <th>الحجم</th>
                   <th>الحالة</th>
@@ -395,7 +394,7 @@ export function LibraryPdfManager() {
                         <div className="text-caption" style={{ color: '#C45C5C' }}>بدون ملف</div>
                       )}
                     </td>
-                    <td>{categoryLabel(pdf.category)}</td>
+                    <td>{ageBandLabel(pdf.ageBand)}</td>
                     <td>{pdf.pageCount || '—'}</td>
                     <td>{formatBytes(pdf.fileSizeBytes)}</td>
                     <td>
