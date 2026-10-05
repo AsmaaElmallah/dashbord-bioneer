@@ -22,6 +22,7 @@ import {
   Sparkles,
   ListChecks,
   Archive,
+  GraduationCap,
 } from 'lucide-react';
 
 export const navSections = [
@@ -37,6 +38,7 @@ export const navSections = [
   { path: '/visual', label: 'التحفيز البصري', icon: Eye },
   { path: '/emotional', label: 'الذكاء العاطفي', icon: Heart },
   { path: '/library', label: 'مكتبة المحتوى', icon: Library },
+  { path: '/courses', label: 'الدورات', icon: GraduationCap },
   { path: '/activities', label: 'الرياضة والأنشطة', icon: Dumbbell },
   { path: '/assessments', label: 'التقييمات', icon: ClipboardCheck },
   { path: '/community', label: 'المجتمع والدعم', icon: MessageCircle },

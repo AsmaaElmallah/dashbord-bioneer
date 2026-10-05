@@ -11,6 +11,7 @@ import { MathPage } from './pages/MathPage';
 import { VisualPage } from './pages/VisualPage';
 import { EmotionalPage } from './pages/EmotionalPage';
 import { LibraryPage } from './pages/LibraryPage';
+import { CoursesPage } from './pages/CoursesPage';
 import { ActivitiesPage } from './pages/ActivitiesPage';
 import { AssessmentsPage } from './pages/AssessmentsPage';
 import { CommunityPage } from './pages/CommunityPage';
@@ -82,6 +83,7 @@ export default function App() {
             <Route path="visual" element={<VisualPage />} />
             <Route path="emotional" element={<EmotionalPage />} />
             <Route path="library" element={<LibraryPage />} />
+            <Route path="courses" element={<CoursesPage />} />
             <Route path="activities" element={<ActivitiesPage />} />
             <Route path="assessments" element={<AssessmentsPage />} />
             <Route path="community" element={<CommunityPage />} />
