@@ -28,6 +28,7 @@ export async function fetchSubscriptionPlans() {
       features: Array.isArray(row.features) ? row.features : [],
       status: row.active ? 'نشطة' : 'متوقفة',
       active: !!row.active,
+      priceUsd: row.price_usd ?? '',
       storeIos: row.store_product_id_ios ?? '',
       storeAndroid: row.store_product_id_android ?? '',
       subscribers: 0,
@@ -113,17 +114,59 @@ export async function fetchUserSubscriptions() {
           : '—',
         status: STATUS_AR[row.status] ?? row.status,
         statusKey: row.status,
-        payment: row.store_receipt?.startsWith('sandbox:')
-          ? 'Sandbox'
-          : row.store_receipt
-            ? 'Store'
-            : '—',
+        payment: paymentSourceLabel(row.store_receipt),
         expiringSoon: endMs != null && endMs > now && endMs <= in30,
       };
     }),
     error: null,
     offline: false,
   };
+}
+
+function paymentSourceLabel(receipt) {
+  if (!receipt) return '—';
+  if (receipt.startsWith('sandbox:')) return 'Sandbox';
+  if (receipt.startsWith('manual:')) return 'تحويل يدوي';
+  if (receipt.startsWith('paypal:')) return 'PayPal';
+  return 'Store';
+}
+
+export async function setPlanPriceUsd(id, value) {
+  if (!isSupabaseEnabled || !supabase) {
+    return { error: new Error('Supabase غير مفعّل') };
+  }
+  const trimmed = String(value ?? '').trim();
+  const price = trimmed === '' ? null : Number(trimmed);
+  if (price !== null && !(price > 0)) {
+    return { error: new Error('اكتبي السعر بالدولار كرقم أكبر من صفر') };
+  }
+  const { error } = await supabase
+    .from('subscription_plans')
+    .update({ price_usd: price })
+    .eq('id', id);
+  return { error };
+}
+
+export async function grantSubscriptionByEmail(email, planId, days) {
+  if (!isSupabaseEnabled || !supabase) {
+    return { data: null, error: new Error('Supabase غير مفعّل') };
+  }
+  const { data, error } = await supabase.rpc('admin_grant_subscription', {
+    p_email: email.trim(),
+    p_plan_id: planId,
+    p_days: days ? Number(days) : null,
+  });
+  if (error) {
+    const m = error.message ?? '';
+    if (m.includes('not_found_user')) {
+      return { data: null, error: new Error('مفيش حساب بالإيميل ده — الأم لازم تسجّل في التطبيق الأول') };
+    }
+    if (m.includes('not_found_plan')) return { data: null, error: new Error('الباقة مش موجودة') };
+    if (m.includes('admin_grant_subscription') || m.includes('schema cache')) {
+      return { data: null, error: new Error('شغّلي migration 20260526100024_payments.sql في Supabase الأول') };
+    }
+  }
+  return { data, error };
 }
 
 export async function extendSubscription(id, days = 30) {

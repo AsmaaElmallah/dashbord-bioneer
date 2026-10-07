@@ -299,7 +299,19 @@ export function CoursesPage() {
                 />
               </label>
               <label className="cms-field">
-                كود المنتج في Google Play (لو فاضي: زرار واتساب بدل الشراء)
+                السعر بالدولار للدفع بـ PayPal (لو فاضي: PayPal مش هيظهر)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  dir="ltr"
+                  placeholder="10"
+                  value={draft.priceUsd}
+                  onChange={(e) => patch({ priceUsd: e.target.value })}
+                />
+              </label>
+              <label className="cms-field">
+                كود المنتج في Google Play (اختياري، لو التطبيق على المتجر)
                 <input
                   type="text"
                   dir="ltr"

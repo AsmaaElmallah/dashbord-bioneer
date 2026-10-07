@@ -13,7 +13,7 @@ import {
   translateCoursesError,
 } from '../services/supabase/coursesService';
 
-const sourceLabel = { admin: 'تفعيل يدوي', store: 'شراء من المتجر' };
+const sourceLabel = { admin: 'تفعيل يدوي', store: 'شراء من المتجر', paypal: 'PayPal' };
 
 /** فتح الدورة لأم معيّنة بالإيميل (للدورات المدفوعة، أو ضمن الباقة لأم مش مشتركة). */
 export function CourseEnrollmentsPanel({ course }) {
@@ -73,7 +73,7 @@ export function CourseEnrollmentsPanel({ course }) {
       <SectionHeader title={`الأمهات اللي معاهم الدورة — ${course.title}`} />
       <p className="text-caption" style={{ margin: '4px 0 12px' }}>
         {course.accessType === 'paid'
-          ? 'لحد ما نربط الشراء من المتجر: بعد ما الأم تدفع، اكتبي إيميلها هنا علشان الدورة تتفتح لها.'
+          ? 'لو الأم دفعت بالتحويل اليدوي، اكتبي إيميلها هنا علشان الدورة تتفتح لها. الدفع بـ PayPal بيفتحها لوحده.'
           : 'الدورة متاحة لكل المشتركات في الباقة. تقدري تفتحيها هنا لأم مش مشتركة.'}
       </p>
       <div className="filters-row">

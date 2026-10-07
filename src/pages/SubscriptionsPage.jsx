@@ -10,12 +10,57 @@ import { StatusBadge } from '../components/StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
 import { isSupabaseEnabled } from '../lib/supabaseClient';
 import { plans as mockPlans, subscriptions as mockSubs } from '../data/mockData';
+import { GrantSubscriptionCard } from '../components/GrantSubscriptionCard';
+import { PaymentSettingsCard } from '../components/PaymentSettingsCard';
 import {
   extendSubscription,
   fetchSubscriptionPlans,
   fetchUserSubscriptions,
   setPlanActive,
+  setPlanPriceUsd,
 } from '../services/supabase/subscriptionsService';
+
+function PlanUsdPrice({ plan, onSaved }) {
+  const { showError, showSuccess } = useSnackbar();
+  const [value, setValue] = useState(String(plan.priceUsd ?? ''));
+  const [saving, setSaving] = useState(false);
+  const dirty = value.trim() !== String(plan.priceUsd ?? '');
+
+  const onSave = async () => {
+    setSaving(true);
+    const { error } = await setPlanPriceUsd(plan.id, value);
+    setSaving(false);
+    if (error) {
+      showError(error.message?.includes('price_usd')
+        ? 'شغّلي migration 20260526100024_payments.sql في Supabase الأول'
+        : error.message ?? 'تعذّر حفظ السعر');
+      return;
+    }
+    showSuccess('تم حفظ السعر بالدولار');
+    onSaved?.();
+  };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+      <span className="text-caption">سعر PayPal بالدولار:</span>
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        dir="ltr"
+        placeholder="5"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        style={{ width: 90 }}
+      />
+      {dirty && (
+        <button type="button" className="mock-btn mock-btn--primary" disabled={saving} onClick={onSave}>
+          {saving ? '…' : 'حفظ'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 const statusTone = {
   نشط: 'success',
@@ -142,6 +187,7 @@ export function SubscriptionsPage() {
                 <li className="text-caption">+ {p.features.length - 3} مميزات أخرى…</li>
               )}
             </ul>
+            {isSupabaseEnabled && remotePlans && <PlanUsdPrice plan={p} onSaved={reload} />}
             {isSupabaseEnabled && (
               <div style={{ marginTop: 12 }}>
                 <MockActionButton
@@ -159,6 +205,13 @@ export function SubscriptionsPage() {
           </AdminCard>
         ))}
       </div>
+
+      {isSupabaseEnabled && (
+        <>
+          <PaymentSettingsCard />
+          <GrantSubscriptionCard plans={plans} onGranted={reload} />
+        </>
+      )}
 
       <AdminCard>
         <SectionHeader title="جدول الاشتراكات" />
