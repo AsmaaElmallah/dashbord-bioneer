@@ -87,6 +87,68 @@
   border: 2px solid var(--outline);
 }
 
+.mock-btn--danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.live-tile {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #1e1b2e;
+  aspect-ratio: 16 / 9;
+}
+
+.live-tile--main {
+  grid-column: span 2;
+}
+
+.live-tile__video {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e9d5ff;
+}
+
+.live-tile__label {
+  position: absolute;
+  bottom: 6px;
+  inset-inline-start: 8px;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.live-requests {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.live-requests li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-container-low, #f5f3ff);
+}
+
 .admin-table-wrap {
   overflow-x: auto;
   border-radius: var(--radius-md);

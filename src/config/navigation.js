@@ -23,6 +23,7 @@ import {
   ListChecks,
   Archive,
   GraduationCap,
+  Radio,
 } from 'lucide-react';
 
 export const navSections = [
@@ -39,6 +40,7 @@ export const navSections = [
   { path: '/emotional', label: 'الذكاء العاطفي', icon: Heart },
   { path: '/library', label: 'مكتبة المحتوى', icon: Library },
   { path: '/courses', label: 'الدورات', icon: GraduationCap },
+  { path: '/live', label: 'اللايف', icon: Radio },
   { path: '/activities', label: 'الرياضة والأنشطة', icon: Dumbbell },
   { path: '/assessments', label: 'التقييمات', icon: ClipboardCheck },
   { path: '/community', label: 'المجتمع والدعم', icon: MessageCircle },
