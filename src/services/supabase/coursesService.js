@@ -5,6 +5,8 @@ const COURSES_TABLE = 'courses';
 const LESSONS_TABLE = 'course_lessons';
 const ENROLLMENTS_TABLE = 'course_enrollments';
 const VIDEO_BUCKET = 'course-videos';
+const RESOURCES_TABLE = 'course_resources';
+const FILES_BUCKET = 'course-files';
 
 /** حد الباقة المجانية في Supabase لحجم الملف الواحد. */
 export const COURSE_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
@@ -51,9 +53,15 @@ export function emptyCourseDraft(sortOrder = 0) {
     subtitle: '',
     description: '',
     instructorName: '',
+    instructorTitle: '',
+    instructorAvatarUrl: '',
+    categoryLabel: '',
     coverUrl: '',
     accessType: 'free',
     priceLabel: '',
+    oldPriceLabel: '',
+    promoNote: '',
+    guaranteeNote: '',
     priceUsd: '',
     storeProductIdAndroid: '',
     storeProductIdIos: '',
@@ -69,9 +77,15 @@ function rowToCourse(row) {
     subtitle: row.subtitle ?? '',
     description: row.description ?? '',
     instructorName: row.instructor_name ?? '',
+    instructorTitle: row.instructor_title ?? '',
+    instructorAvatarUrl: row.instructor_avatar_url ?? '',
+    categoryLabel: row.category_label ?? '',
     coverUrl: row.cover_url ?? '',
     accessType: row.access_type ?? 'free',
     priceLabel: row.price_label ?? '',
+    oldPriceLabel: row.old_price_label ?? '',
+    promoNote: row.promo_note ?? '',
+    guaranteeNote: row.guarantee_note ?? '',
     priceUsd: row.price_usd ?? '',
     storeProductIdAndroid: row.store_product_id_android ?? '',
     storeProductIdIos: row.store_product_id_ios ?? '',
@@ -87,9 +101,15 @@ function courseToRow(course) {
     subtitle: course.subtitle.trim(),
     description: course.description.trim(),
     instructor_name: course.instructorName.trim(),
+    instructor_title: (course.instructorTitle ?? '').trim(),
+    instructor_avatar_url: course.instructorAvatarUrl?.trim() || null,
+    category_label: (course.categoryLabel ?? '').trim(),
     cover_url: course.coverUrl?.trim() || null,
     access_type: course.accessType,
     price_label: course.priceLabel.trim(),
+    old_price_label: (course.oldPriceLabel ?? '').trim(),
+    promo_note: (course.promoNote ?? '').trim(),
+    guarantee_note: (course.guaranteeNote ?? '').trim(),
     price_usd: String(course.priceUsd ?? '').trim() === '' ? null : Number(course.priceUsd),
     store_product_id_android: course.storeProductIdAndroid?.trim() || null,
     store_product_id_ios: course.storeProductIdIos?.trim() || null,
@@ -154,6 +174,8 @@ export function emptyLessonDraft(courseId, sortOrder = 0) {
     courseId,
     title: '',
     description: '',
+    unitTitle: '',
+    liveSessionId: null,
     sourceType: 'upload',
     videoPath: '',
     videoSizeBytes: null,
@@ -173,6 +195,8 @@ function rowToLesson(row) {
     courseId: row.course_id,
     title: row.title ?? '',
     description: row.description ?? '',
+    unitTitle: row.unit_title ?? '',
+    liveSessionId: row.live_session_id ?? null,
     sourceType: row.video_path || !youtubeVideoId ? 'upload' : 'youtube',
     videoPath: row.video_path ?? '',
     videoSizeBytes: null,
@@ -193,6 +217,8 @@ function lessonToRow(lesson) {
     course_id: lesson.courseId,
     title: lesson.title.trim(),
     description: lesson.description.trim(),
+    unit_title: (lesson.unitTitle ?? '').trim(),
+    live_session_id: lesson.liveSessionId || null,
     video_path: useYoutube ? null : lesson.videoPath || null,
     youtube_video_id: useYoutube ? lesson.youtubeVideoId || null : null,
     duration_seconds: Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60) : null,
@@ -268,6 +294,133 @@ export async function signedCourseVideoUrl(path) {
 }
 
 // ---------------------------------------------------------------------------
+// ملفات الدورة (PDF)
+// ---------------------------------------------------------------------------
+
+export async function listResources(courseId) {
+  if (offline()) return { data: [], error: null };
+  const { data, error } = await supabase
+    .from(RESOURCES_TABLE)
+    .select('*')
+    .eq('course_id', courseId)
+    .order('sort_order')
+    .order('created_at');
+  return {
+    data: (data ?? []).map((r) => ({
+      id: r.id,
+      title: r.title ?? '',
+      subtitle: r.subtitle ?? '',
+      filePath: r.file_path,
+      isPreview: r.is_preview ?? false,
+      sortOrder: r.sort_order ?? 0,
+    })),
+    error,
+  };
+}
+
+export async function addResource(courseId, { title, subtitle, isPreview, file, sortOrder }) {
+  if (offline()) return { error: OFFLINE_ERROR };
+  const path = `${courseId}/${Date.now()}_${safeFileName(file.name)}`;
+  const { error: uploadError } = await supabase.storage.from(FILES_BUCKET).upload(path, file, {
+    upsert: false,
+    contentType: 'application/pdf',
+  });
+  if (uploadError) return { error: uploadError };
+  const { error } = await supabase.from(RESOURCES_TABLE).insert({
+    id: `file_${Date.now()}`,
+    course_id: courseId,
+    title: title.trim(),
+    subtitle: subtitle.trim(),
+    file_path: path,
+    is_preview: Boolean(isPreview),
+    sort_order: Number(sortOrder) || 0,
+  });
+  if (error) await supabase.storage.from(FILES_BUCKET).remove([path]);
+  return { error };
+}
+
+export async function updateResource(resource) {
+  if (offline()) return { error: OFFLINE_ERROR };
+  const { error } = await supabase
+    .from(RESOURCES_TABLE)
+    .update({ title: resource.title.trim(), subtitle: resource.subtitle.trim(), is_preview: resource.isPreview })
+    .eq('id', resource.id);
+  return { error };
+}
+
+export async function deleteResource(resource) {
+  if (offline()) return { error: OFFLINE_ERROR };
+  const { error } = await supabase.from(RESOURCES_TABLE).delete().eq('id', resource.id);
+  if (!error) await supabase.storage.from(FILES_BUCKET).remove([resource.filePath]);
+  return { error };
+}
+
+// ---------------------------------------------------------------------------
+// نشر تسجيل لايف كدرس (في دورة موجودة أو دورة جديدة)
+// ---------------------------------------------------------------------------
+
+export const LIVE_RECORDINGS_UNIT = 'تسجيلات اللايف';
+
+/**
+ * target: { mode: 'existing', courseId, isPreview } أو { mode: 'new', title, accessType, priceLabel, priceUsd }
+ * video: { youtubeVideoId } أو { file } (ملف حتى 50 ميجا)
+ */
+export async function publishLiveRecording({ session, lessonTitle, durationMinutes, video, target }) {
+  if (offline()) return { data: null, error: OFFLINE_ERROR };
+
+  let courseId = target.courseId;
+  if (target.mode === 'new') {
+    const draft = {
+      ...emptyCourseDraft(),
+      title: target.title,
+      description: session.description ?? '',
+      instructorName: session.instructorName ?? '',
+      coverUrl: session.coverUrl ?? '',
+      accessType: target.accessType,
+      priceLabel: target.priceLabel ?? '',
+      priceUsd: target.priceUsd ?? '',
+      publishStatus: session.coverUrl ? 'published' : 'draft',
+    };
+    const { data, error } = await saveCourse(draft);
+    if (error) return { data: null, error };
+    courseId = data.id;
+  }
+
+  let videoPath = '';
+  if (video.file) {
+    const { data, error } = await uploadCourseVideo(courseId, video.file);
+    if (error) return { data: null, error };
+    videoPath = data.path;
+  }
+
+  const { data: existing } = await supabase
+    .from(LESSONS_TABLE)
+    .select('sort_order')
+    .eq('course_id', courseId)
+    .order('sort_order', { ascending: false })
+    .limit(1);
+
+  const lesson = {
+    ...emptyLessonDraft(courseId, (existing?.[0]?.sort_order ?? 0) + 1),
+    title: lessonTitle,
+    description: session.description ?? '',
+    unitTitle: LIVE_RECORDINGS_UNIT,
+    liveSessionId: session.id,
+    sourceType: video.file ? 'upload' : 'youtube',
+    videoPath,
+    youtubeVideoId: video.youtubeVideoId ?? '',
+    durationMinutes: durationMinutes ?? '',
+    isPreview: target.mode === 'existing' && Boolean(target.isPreview),
+  };
+  const { error } = await saveLesson(lesson);
+  if (error) {
+    if (videoPath) await removeCourseVideo(videoPath);
+    return { data: null, error };
+  }
+  return { data: { courseId }, error: null };
+}
+
+// ---------------------------------------------------------------------------
 // Enrollments (فتح دورة مدفوعة لأم يدوياً)
 // ---------------------------------------------------------------------------
 
@@ -316,6 +469,13 @@ export function translateCoursesError(message) {
     (m.includes('does not exist') || m.includes('schema cache') || m.includes('could not find'))
   ) {
     return 'جداول الدورات غير موجودة — شغّلي migration 20260526100022_courses.sql في Supabase SQL Editor.';
+  }
+  if (
+    (m.includes('course_resources') || m.includes('unit_title') || m.includes('category_label') ||
+      m.includes('live_session_id')) &&
+    (m.includes('does not exist') || m.includes('schema cache') || m.includes('could not find'))
+  ) {
+    return 'إضافات تصميم الدورة غير موجودة — شغّلي migration 20260526100027_course_design_live_recordings.sql في Supabase SQL Editor.';
   }
   if (m.includes('bucket not found')) {
     return 'مكان فيديوهات الدورات غير موجود — شغّلي migration 20260526100022_courses.sql أولاً.';

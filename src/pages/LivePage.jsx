@@ -1,4 +1,4 @@
-import { Pencil, Plus, Radio, RefreshCw, Trash2, X } from 'lucide-react';
+import { Film, Pencil, Plus, Radio, RefreshCw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
@@ -8,6 +8,7 @@ import { LiveHostRoom } from '../components/LiveHostRoom';
 import { MediaCoverPick } from '../components/MediaCoverPick';
 import { MockLoading } from '../components/MockLoading';
 import { PageHeader } from '../components/PageHeader';
+import { PublishRecordingPanel } from '../components/PublishRecordingPanel';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
@@ -87,6 +88,7 @@ export function LivePage() {
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [hostSession, setHostSession] = useState(null);
+  const [publishFor, setPublishFor] = useState(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -142,7 +144,8 @@ export function LivePage() {
       <InfoBanner tone="info">
         اعملي لايف جديد وحددي ميعاده ومين يقدر يحضره. وقت اللايف دوسي «ابدئي البث» من هنا (من كمبيوتر فيه كاميرا
         ومايك). الأمهات بيتفرجوا من التطبيق، واللي ترفع إيدها تقدري تطلّعيها على المسرح تتكلم بالصوت والصورة.
-        بعد اللايف ارفعي التسجيل على YouTube «غير مُدرج» وحطي رابطه هنا.
+        وأثناء البث دوسي «سجّلي اللايف» علشان يتحفظ فيديو على جهازك. بعد ما اللايف يخلص دوسي «انشري التسجيل»
+        وحطيه درس في دورة (مجاني أو بفلوس) أو دورة جديدة لوحدها.
       </InfoBanner>
 
       <AgoraSettingsCard />
@@ -155,6 +158,18 @@ export function LivePage() {
             reload();
           }}
           onStatusChange={reload}
+          onRecorded={(recorded) => setPublishFor({ session: hostSession, recorded })}
+        />
+      )}
+
+      {publishFor && (
+        <PublishRecordingPanel
+          key={publishFor.session.id}
+          session={publishFor.session}
+          recorded={publishFor.recorded}
+          courses={courses}
+          onClose={() => setPublishFor(null)}
+          onPublished={reload}
         />
       )}
 
@@ -204,14 +219,24 @@ export function LivePage() {
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {s.status === 'ended' ? (
-                        <button
-                          type="button"
-                          className="mock-btn mock-btn--outline"
-                          style={{ padding: '4px 10px' }}
-                          onClick={() => onReset(s)}
-                        >
-                          إعادة جدولة
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="mock-btn mock-btn--primary"
+                            style={{ padding: '4px 10px' }}
+                            onClick={() => setPublishFor({ session: s, recorded: null })}
+                          >
+                            <Film size={14} /> انشري التسجيل
+                          </button>{' '}
+                          <button
+                            type="button"
+                            className="mock-btn mock-btn--outline"
+                            style={{ padding: '4px 10px' }}
+                            onClick={() => onReset(s)}
+                          >
+                            إعادة جدولة
+                          </button>
+                        </>
                       ) : (
                         <button
                           type="button"

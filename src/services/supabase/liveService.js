@@ -125,6 +125,15 @@ export async function setLiveStatus(id, status) {
   return { error };
 }
 
+export async function setLiveRecording(id, youtubeVideoId) {
+  if (offline()) return { error: OFFLINE_ERROR };
+  const { error } = await supabase
+    .from(SESSIONS_TABLE)
+    .update({ recording_youtube_id: youtubeVideoId || null })
+    .eq('id', id);
+  return { error };
+}
+
 export async function listStageRequests(sessionId) {
   if (offline()) return { data: [], error: null };
   const { data, error } = await supabase

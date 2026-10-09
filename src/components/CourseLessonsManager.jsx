@@ -193,6 +193,15 @@ export function CourseLessonsManager({ course, onLessonsChanged }) {
             <input type="text" value={draft.title} onChange={(e) => patch({ title: e.target.value })} />
           </label>
           <label className="cms-field">
+            الوحدة (الدروس اللي ليها نفس اسم الوحدة بتظهر مع بعض — اختياري)
+            <input
+              type="text"
+              placeholder="مثال: الوحدة الأولى: التهيئة والتحفيز الحسي"
+              value={draft.unitTitle}
+              onChange={(e) => patch({ unitTitle: e.target.value })}
+            />
+          </label>
+          <label className="cms-field">
             وصف أو ملاحظات (اختياري)
             <textarea rows={3} value={draft.description} onChange={(e) => patch({ description: e.target.value })} />
           </label>
@@ -326,6 +335,8 @@ export function CourseLessonsManager({ course, onLessonsChanged }) {
                   <td className="text-truncate" style={{ maxWidth: 260 }}>
                     {lesson.title}
                     <div className="text-caption">
+                      {lesson.unitTitle ? `${lesson.unitTitle} · ` : ''}
+                      {lesson.liveSessionId ? 'تسجيل لايف · ' : ''}
                       {lesson.durationMinutes ? `${lesson.durationMinutes} دقيقة` : ''}
                       {lesson.isPreview ? ' · تجريبي' : ''}
                     </div>

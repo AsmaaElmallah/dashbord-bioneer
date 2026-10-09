@@ -1,5 +1,18 @@
 import AgoraRTC from 'agora-rtc-sdk-ng';
-import { Check, Hand, Mic, MicOff, PhoneOff, Radio, UserMinus, Video, VideoOff, X } from 'lucide-react';
+import {
+  Check,
+  Circle,
+  Hand,
+  Mic,
+  MicOff,
+  PhoneOff,
+  Radio,
+  Square,
+  UserMinus,
+  Video,
+  VideoOff,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminCard } from './AdminCard';
 import { SectionHeader } from './SectionHeader';
@@ -14,6 +27,101 @@ import {
 } from '../services/supabase/liveService';
 
 AgoraRTC.setLogLevel(3);
+
+const REC_WIDTH = 1280;
+const REC_HEIGHT = 720;
+
+function pickRecordingMime() {
+  const options = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+  return options.find((m) => window.MediaRecorder?.isTypeSupported?.(m)) ?? '';
+}
+
+function drawCover(ctx, video, x, y, w, h) {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) return;
+  const scale = Math.max(w / vw, h / vh);
+  const sw = w / scale;
+  const sh = h / scale;
+  ctx.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, x, y, w, h);
+}
+
+/**
+ * Records the room as one video: host camera full frame, stage mothers as small tiles,
+ * and every audio track mixed together. Returns a Blob when stopped.
+ */
+function createRoomRecorder(gridEl) {
+  const canvas = document.createElement('canvas');
+  canvas.width = REC_WIDTH;
+  canvas.height = REC_HEIGHT;
+  const ctx = canvas.getContext('2d');
+  const audioCtx = new AudioContext();
+  const mix = audioCtx.createMediaStreamDestination();
+  const connected = new Set();
+
+  const draw = () => {
+    ctx.fillStyle = '#1f1a2e';
+    ctx.fillRect(0, 0, REC_WIDTH, REC_HEIGHT);
+    const main = gridEl.querySelector('.live-tile--main video');
+    if (main) drawCover(ctx, main, 0, 0, REC_WIDTH, REC_HEIGHT);
+    const others = [...gridEl.querySelectorAll('.live-tile:not(.live-tile--main) video')];
+    const tileW = 240;
+    const tileH = 180;
+    others.forEach((video, i) => {
+      const x = REC_WIDTH - (tileW + 16) * (i + 1);
+      const y = REC_HEIGHT - tileH - 16;
+      if (x < 0) return;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x - 2, y - 2, tileW + 4, tileH + 4);
+      drawCover(ctx, video, x, y, tileW, tileH);
+    });
+  };
+  const timer = setInterval(draw, 1000 / 30);
+
+  const addAudio = (mediaStreamTrack) => {
+    if (!mediaStreamTrack || connected.has(mediaStreamTrack.id)) return;
+    connected.add(mediaStreamTrack.id);
+    audioCtx.createMediaStreamSource(new MediaStream([mediaStreamTrack])).connect(mix);
+  };
+
+  const stream = new MediaStream([...canvas.captureStream(30).getVideoTracks(), ...mix.stream.getAudioTracks()]);
+  const mimeType = pickRecordingMime();
+  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 1_200_000 });
+  const chunks = [];
+  recorder.ondataavailable = (e) => {
+    if (e.data.size) chunks.push(e.data);
+  };
+  recorder.start(1000);
+  const startedAt = Date.now();
+
+  const stop = () =>
+    new Promise((resolve) => {
+      recorder.onstop = () => {
+        clearInterval(timer);
+        audioCtx.close().catch(() => {});
+        const type = (mimeType || 'video/webm').split(';')[0];
+        resolve({ blob: new Blob(chunks, { type }), minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)) });
+      };
+      recorder.stop();
+    });
+
+  return { addAudio, stop, startedAt };
+}
+
+function formatElapsed(ms) {
+  const s = Math.floor(ms / 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
 
 function RemoteTile({ user, label }) {
   const ref = useRef(null);
@@ -32,16 +140,57 @@ function RemoteTile({ user, label }) {
 }
 
 /** غرفة البث للمدرّبة: كاميرا ومايك، الأمهات على المسرح، وطلبات رفع الإيد. */
-export function LiveHostRoom({ session, onClose, onStatusChange }) {
+export function LiveHostRoom({ session, onClose, onStatusChange, onRecorded }) {
   const { showError, showSuccess } = useSnackbar();
   const [phase, setPhase] = useState('idle');
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [remoteUsers, setRemoteUsers] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [recordingSince, setRecordingSince] = useState(null);
+  const [, setTick] = useState(0);
   const clientRef = useRef(null);
   const tracksRef = useRef([]);
   const localVideoRef = useRef(null);
+  const gridRef = useRef(null);
+  const recorderRef = useRef(null);
+
+  useEffect(() => {
+    if (!recordingSince) return undefined;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [recordingSince]);
+
+  const startRecording = () => {
+    if (!window.MediaRecorder) {
+      showError('المتصفح ده مش بيدعم التسجيل — استخدمي Chrome أو Edge.');
+      return;
+    }
+    try {
+      const rec = createRoomRecorder(gridRef.current);
+      rec.addAudio(tracksRef.current[0]?.getMediaStreamTrack());
+      (clientRef.current?.remoteUsers ?? []).forEach((u) => rec.addAudio(u.audioTrack?.getMediaStreamTrack()));
+      recorderRef.current = rec;
+      setRecordingSince(rec.startedAt);
+      showSuccess('التسجيل بدأ — خلّي التاب دي مفتوحة لحد ما تخلّصي');
+    } catch (e) {
+      showError(`تعذّر بدء التسجيل: ${e?.message ?? e}`);
+    }
+  };
+
+  /** Stops the recorder, saves the file to the computer, and hands it to the page for publishing. */
+  const stopRecording = async () => {
+    const rec = recorderRef.current;
+    if (!rec) return;
+    recorderRef.current = null;
+    setRecordingSince(null);
+    const { blob, minutes } = await rec.stop();
+    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+    const name = `live_${session.title.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 40)}_${new Date().toISOString().slice(0, 10)}.${ext}`;
+    downloadBlob(blob, name);
+    onRecorded?.({ file: new File([blob], name, { type: blob.type }), minutes });
+    showSuccess('التسجيل اتحفظ على الجهاز في Downloads');
+  };
 
   const reloadRequests = useCallback(async () => {
     const { data } = await listStageRequests(session.id);
@@ -66,6 +215,9 @@ export function LiveHostRoom({ session, onClose, onStatusChange }) {
   }, []);
 
   useEffect(() => () => {
+    const rec = recorderRef.current;
+    recorderRef.current = null;
+    if (rec) rec.stop().then(({ blob }) => downloadBlob(blob, `live_recording_${Date.now()}.webm`));
     cleanup();
   }, [cleanup]);
 
@@ -85,7 +237,10 @@ export function LiveHostRoom({ session, onClose, onStatusChange }) {
       await client.setClientRole('host');
       client.on('user-published', async (user, mediaType) => {
         await client.subscribe(user, mediaType);
-        if (mediaType === 'audio') user.audioTrack?.play();
+        if (mediaType === 'audio') {
+          user.audioTrack?.play();
+          recorderRef.current?.addAudio(user.audioTrack?.getMediaStreamTrack());
+        }
         syncRemote();
       });
       client.on('user-unpublished', syncRemote);
@@ -118,6 +273,7 @@ export function LiveHostRoom({ session, onClose, onStatusChange }) {
 
   const end = async () => {
     if (!window.confirm('إنهاء اللايف لكل الأمهات؟')) return;
+    await stopRecording();
     await cleanup();
     await setLiveStatus(session.id, 'ended');
     onStatusChange?.('ended');
@@ -162,7 +318,7 @@ export function LiveHostRoom({ session, onClose, onStatusChange }) {
         )}
       </div>
 
-      <div className="live-grid">
+      <div className="live-grid" ref={gridRef}>
         <div className="live-tile live-tile--main">
           <div ref={localVideoRef} className="live-tile__video">
             {phase !== 'live' && <span className="text-caption">الكاميرا هتظهر هنا لما تبدئي اللايف</span>}
@@ -187,6 +343,15 @@ export function LiveHostRoom({ session, onClose, onStatusChange }) {
             <button type="button" className="mock-btn mock-btn--outline" onClick={toggleCam}>
               {camOn ? <Video size={16} /> : <VideoOff size={16} />} {camOn ? 'قفل الكاميرا' : 'تشغيل الكاميرا'}
             </button>
+            {recordingSince ? (
+              <button type="button" className="mock-btn mock-btn--outline" onClick={stopRecording}>
+                <Square size={14} /> وقّفي التسجيل ({formatElapsed(Date.now() - recordingSince)})
+              </button>
+            ) : (
+              <button type="button" className="mock-btn mock-btn--outline" onClick={startRecording}>
+                <Circle size={14} color="#c0392b" fill="#c0392b" /> سجّلي اللايف
+              </button>
+            )}
             <button type="button" className="mock-btn mock-btn--danger" onClick={end}>
               <PhoneOff size={16} /> إنهاء اللايف
             </button>

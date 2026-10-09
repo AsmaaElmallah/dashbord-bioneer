@@ -4,6 +4,7 @@ import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { CourseEnrollmentsPanel } from '../components/CourseEnrollmentsPanel';
 import { CourseLessonsManager } from '../components/CourseLessonsManager';
+import { CourseResourcesPanel } from '../components/CourseResourcesPanel';
 import { EmptyState } from '../components/EmptyState';
 import { InfoBanner } from '../components/InfoBanner';
 import { MediaCoverPick } from '../components/MediaCoverPick';
@@ -248,6 +249,15 @@ export function CoursesPage() {
               />
             </label>
             <label className="cms-field">
+              التصنيف (يظهر فوق اسم الدورة)
+              <input
+                type="text"
+                placeholder="مثال: نمو وتطور الرضيع (٠-٢ سنة)"
+                value={draft.categoryLabel}
+                onChange={(e) => patch({ categoryLabel: e.target.value })}
+              />
+            </label>
+            <label className="cms-field">
               اسم المدرّبة
               <input
                 type="text"
@@ -255,7 +265,21 @@ export function CoursesPage() {
                 onChange={(e) => patch({ instructorName: e.target.value })}
               />
             </label>
+            <label className="cms-field">
+              لقب المدرّبة
+              <input
+                type="text"
+                placeholder="مثال: استشارية تطور الرضع والطب السلوكي"
+                value={draft.instructorTitle}
+                onChange={(e) => patch({ instructorTitle: e.target.value })}
+              />
+            </label>
           </div>
+          <MediaCoverPick
+            label="صورة المدرّبة (اختياري)"
+            value={draft.instructorAvatarUrl}
+            onChange={(url) => patch({ instructorAvatarUrl: url })}
+          />
           <label className="cms-field">
             وصف الدورة
             <textarea
@@ -299,6 +323,24 @@ export function CoursesPage() {
                 />
               </label>
               <label className="cms-field">
+                السعر قبل الخصم (اختياري، يظهر مشطوب)
+                <input
+                  type="text"
+                  placeholder="مثال: 350 جنيه"
+                  value={draft.oldPriceLabel}
+                  onChange={(e) => patch({ oldPriceLabel: e.target.value })}
+                />
+              </label>
+              <label className="cms-field">
+                ملاحظة العرض (اختياري)
+                <input
+                  type="text"
+                  placeholder="مثال: خصم 45% لفترة محدودة 🔥"
+                  value={draft.promoNote}
+                  onChange={(e) => patch({ promoNote: e.target.value })}
+                />
+              </label>
+              <label className="cms-field">
                 السعر بالدولار للدفع بـ PayPal (لو فاضي: PayPal مش هيظهر)
                 <input
                   type="number"
@@ -322,10 +364,21 @@ export function CoursesPage() {
               </label>
             </div>
           )}
-          <label className="cms-field">
-            الترتيب
-            <input type="number" value={draft.sortOrder} onChange={(e) => patch({ sortOrder: e.target.value })} />
-          </label>
+          <div className="grid-2" style={{ gap: 12 }}>
+            <label className="cms-field">
+              ملاحظة الضمان تحت زرار الشراء (اختياري)
+              <input
+                type="text"
+                placeholder="مثال: ضمان استرداد كامل خلال 14 يوماً 🛡️"
+                value={draft.guaranteeNote}
+                onChange={(e) => patch({ guaranteeNote: e.target.value })}
+              />
+            </label>
+            <label className="cms-field">
+              الترتيب
+              <input type="number" value={draft.sortOrder} onChange={(e) => patch({ sortOrder: e.target.value })} />
+            </label>
+          </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button type="button" className="mock-btn mock-btn--primary" disabled={saving} onClick={onSave}>
               {saving ? 'جاري الحفظ…' : 'حفظ الدورة'}
@@ -340,6 +393,8 @@ export function CoursesPage() {
       {selected && (
         <CourseLessonsManager key={selected.id} course={selected} onLessonsChanged={reload} />
       )}
+
+      {selected && <CourseResourcesPanel key={`files_${selected.id}`} course={selected} />}
 
       {selected && selected.accessType !== 'free' && (
         <CourseEnrollmentsPanel key={`enroll_${selected.id}`} course={selected} />
