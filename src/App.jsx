@@ -22,6 +22,7 @@ import { AssetsPage } from './pages/AssetsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AiPage } from './pages/AiPage';
 import { SearchPage } from './pages/SearchPage';
 import { DesignSystemPage } from './pages/DesignSystemPage';
 import { ContentStudioPage } from './pages/ContentStudioPage';
@@ -95,6 +96,7 @@ export default function App() {
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="ai" element={<AiPage />} />
             <Route path="design-system" element={<DesignSystemPage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

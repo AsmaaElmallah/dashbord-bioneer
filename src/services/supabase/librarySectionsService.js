@@ -23,6 +23,7 @@ export function emptyPaidBookDraft(sortOrder = 0) {
     title: '',
     description: '',
     coverUrl: '',
+    priceUsd: '',
     sortOrder,
     publishStatus: 'published',
   };
@@ -35,18 +36,21 @@ function rowToPaidBook(row) {
     title: row.title ?? '',
     description: row.description ?? '',
     coverUrl: row.cover_url ?? '',
+    priceUsd: row.price_usd ?? '',
     sortOrder: row.sort_order ?? 0,
     publishStatus: row.publish_status ?? 'draft',
   };
 }
 
 function paidBookToRow(book) {
+  const usd = String(book.priceUsd ?? '').trim();
   return {
     id: book.id || `paid_${Date.now()}`,
     age_band: book.ageBand,
     title: book.title.trim(),
     description: book.description.trim(),
     cover_url: book.coverUrl?.trim() || null,
+    price_usd: usd === '' ? null : Number(usd),
     sort_order: Number(book.sortOrder) || 0,
     publish_status: book.publishStatus,
   };
@@ -55,6 +59,8 @@ function paidBookToRow(book) {
 export function validatePaidBook(book) {
   if (!book.title.trim()) return 'العنوان مطلوب.';
   if (book.publishStatus === 'published' && !book.coverUrl) return 'ارفعي صورة الكتاب قبل النشر.';
+  const usd = String(book.priceUsd ?? '').trim();
+  if (usd !== '' && !(Number(usd) > 0)) return 'سعر PayPal بالدولار لازم يكون رقم أكبر من صفر، أو سيبيه فاضي.';
   return null;
 }
 
@@ -74,6 +80,23 @@ export async function deletePaidBook(id) {
   if (offline()) return { error: OFFLINE_ERROR };
   const { error } = await supabase.from(PAID_TABLE).delete().eq('id', id);
   return { error };
+}
+
+export async function listPaidBookPurchases() {
+  if (offline()) return { data: [], error: null };
+  const { data, error } = await supabase.rpc('admin_library_book_purchases');
+  return {
+    data: (data ?? []).map((row) => ({
+      userId: row.user_id,
+      email: row.email ?? '',
+      name: row.display_name ?? '',
+      bookId: row.book_id,
+      bookTitle: row.book_title ?? '',
+      source: row.source,
+      createdAt: row.created_at,
+    })),
+    error,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +201,12 @@ export function translateSectionsError(message) {
     (m.includes('does not exist') || m.includes('schema cache') || m.includes('could not find'))
   ) {
     return 'جداول أقسام المكتبة غير موجودة — شغّلي migration 20260526100021_library_age_sections.sql في Supabase SQL Editor.';
+  }
+  if (
+    (m.includes('price_usd') || m.includes('library_book_purchases') || m.includes('admin_library_book_purchases')) &&
+    (m.includes('does not exist') || m.includes('schema cache') || m.includes('could not find'))
+  ) {
+    return 'شغّلي migration 20260526100028_paid_book_paypal.sql في Supabase SQL Editor علشان دفع الكتب بـ PayPal.';
   }
   if (m.includes('library_visual_videos_source_check')) {
     return 'أضيفي رابط YouTube أو ارفعي فيديو قبل النشر.';

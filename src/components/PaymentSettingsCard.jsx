@@ -86,7 +86,7 @@ export function PaymentSettingsCard() {
             PayPal أو بطاقة بنكية (يتفعّل تلقائي بعد الدفع)
           </label>
           <p className="text-caption" style={{ margin: 0 }}>
-            PayPal بيظهر بس للباقات والدورات اللي ليها سعر بالدولار. ولو التطبيق نزل على Google Play، اقفلي
+            PayPal بيظهر للباقات والدورات والكتب المدفوعة اللي ليها سعر بالدولار. ولو التطبيق نزل على Google Play، اقفلي
             PayPal والتحويل اليدوي علشان Google ممكن ترفض التطبيق.
           </p>
           <div>

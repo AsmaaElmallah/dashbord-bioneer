@@ -15,6 +15,7 @@ import {
   Bell,
   BarChart3,
   GraduationCap,
+  Sparkles,
 } from 'lucide-react';
 
 /** قائمة العميل — صفحات مربوطة بـ Supabase فقط. المسارات القديمة تفضل شغالة بالرابط المباشر. */
@@ -32,6 +33,7 @@ export const navSections = [
   { path: '/emotional', label: 'الذكاء العاطفي', icon: Heart },
   { path: '/assessments', label: 'التقييمات', icon: ClipboardCheck },
   { path: '/community', label: 'المجتمع والدعم', icon: MessageCircle },
+  { path: '/ai', label: 'مساعدة بيانور (AI)', icon: Sparkles },
   { path: '/notifications', label: 'الإشعارات', icon: Bell },
   { path: '/assets', label: 'الملفات', icon: FolderOpen },
   { path: '/reports', label: 'التقارير', icon: BarChart3 },

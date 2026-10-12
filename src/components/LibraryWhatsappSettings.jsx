@@ -67,6 +67,7 @@ export function LibraryWhatsappSettings() {
       <SectionHeader title="رقم واتساب الكتب المدفوعة" />
       <p className="text-caption" style={{ marginTop: 0 }}>
         لما الأم تضغط «تواصلي عبر واتساب» على أي كتاب مدفوع، بيفتح واتساب على الرقم ده برسالة فيها اسم الكتاب.
+        الدفع بـ PayPal خيار تاني: اكتبي سعر الكتاب بالدولار تحت، وفعّلي PayPal من صفحة الاشتراكات.
       </p>
       <div className="whatsapp-phone" dir="rtl">
         <Phone size={20} className="whatsapp-phone__icon" />

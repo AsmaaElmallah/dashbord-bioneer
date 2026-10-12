@@ -7,16 +7,20 @@ import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
+import { libraryAgeBands } from '../data/libraryAgeBands';
+import { ClubPostsModeration } from '../components/ClubPostsModeration';
+import { ClubReportsPanel } from '../components/ClubReportsPanel';
 import {
+  ensureClubAgeCategories,
   fetchClubPosts,
   fetchCommunityFaq,
   fetchCommunityFeedback,
   fetchConsultationRequests,
-  publishClubPost,
   publishCommunityFaq,
   updateConsultationStatus,
   updateFeedbackBoardStatus,
   updateFeedbackReply,
+  upsertClubPost,
   upsertCommunityFaq,
 } from '../services/supabase/communityService';
 
@@ -43,6 +47,8 @@ export function CommunityPage() {
   const [feedbackRows, setFeedbackRows] = useState([]);
   const [consultationRows, setConsultationRows] = useState([]);
   const [clubRows, setClubRows] = useState([]);
+  const [clubDraft, setClubDraft] = useState({ title: '', body: '', categoryId: libraryAgeBands[0].id });
+  const [savingClub, setSavingClub] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [faqDraft, setFaqDraft] = useState({ question: '', answer: '' });
   const [savingFaq, setSavingFaq] = useState(false);
@@ -57,6 +63,7 @@ export function CommunityPage() {
       fetchCommunityFeedback(),
       fetchConsultationRequests(),
       fetchClubPosts(),
+      ensureClubAgeCategories(),
     ]);
     if (faq.offline) {
       setCloudReady(false);
@@ -177,13 +184,24 @@ export function CommunityPage() {
     await loadCloud();
   };
 
-  const handlePublishClub = async (id) => {
-    const { error } = await publishClubPost(id);
-    if (error) {
-      showMock(error.message ?? 'تعذّر النشر');
+  const handleAddClubPost = async () => {
+    if (!clubDraft.title.trim() || !clubDraft.body.trim()) {
+      showMock('اكتبي العنوان والنص');
       return;
     }
-    showMock('تم نشر المنشور');
+    if (!clubDraft.categoryId) {
+      showMock('اختاري عمر البيبي');
+      return;
+    }
+    setSavingClub(true);
+    const { error } = await upsertClubPost(clubDraft);
+    setSavingClub(false);
+    if (error) {
+      showMock(error.message ?? 'تعذّر حفظ المنشور');
+      return;
+    }
+    setClubDraft({ title: '', body: '', categoryId: libraryAgeBands[0].id });
+    showMock('تم نشر المناقشة في نادي الأمهات');
     await loadCloud();
   };
 
@@ -421,46 +439,47 @@ export function CommunityPage() {
       {tab === 'club' && (
         <AdminCard>
           <SectionHeader title="منشورات نادي الأمهات" />
-          <AdminTableContainer>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>العنوان</th>
-                  <th>الكاتبة</th>
-                  <th>الحالة</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {clubRows.map((p) => (
-                      <tr key={p.id}>
-                        <td style={{ fontWeight: 600 }}>{p.title}</td>
-                        <td>{p.author_display_name ?? '—'}</td>
-                        <td>
-                          <StatusBadge
-                            tone={
-                              p.publish_status === 'published' ? 'success' : 'warning'
-                            }
-                          >
-                            {p.publish_status}
-                          </StatusBadge>
-                        </td>
-                        <td>
-                          {p.publish_status !== 'published' && (
-                            <button
-                              type="button"
-                              className="mock-btn mock-btn--outline"
-                              onClick={() => handlePublishClub(p.id)}
-                            >
-                              نشر
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-              </tbody>
-            </table>
-          </AdminTableContainer>
+          <p className="text-caption" style={{ margin: '4px 0 12px' }}>
+            أسئلة الأمهات من التطبيق بتوصل هنا «مستنية مراجعة» ومش بتظهر لحد غير لما تنشريها. تقدري كمان تكتبي مناقشة
+            باسم فريق بيانور وتنشر على طول.
+          </p>
+          <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+            <input
+              type="text"
+              placeholder="عنوان المناقشة"
+              value={clubDraft.title}
+              onChange={(e) => setClubDraft((d) => ({ ...d, title: e.target.value }))}
+            />
+            <textarea
+              rows={3}
+              placeholder="نص المناقشة"
+              value={clubDraft.body}
+              onChange={(e) => setClubDraft((d) => ({ ...d, body: e.target.value }))}
+            />
+            <label className="cms-field">
+              عمر البيبي
+              <select
+                value={clubDraft.categoryId}
+                onChange={(e) => setClubDraft((d) => ({ ...d, categoryId: e.target.value }))}
+              >
+                {libraryAgeBands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={savingClub || !cloudReady}
+              onClick={handleAddClubPost}
+            >
+              {savingClub ? 'جاري النشر…' : 'نشر مناقشة'}
+            </button>
+          </div>
+          <ClubReportsPanel notify={showMock} onChanged={loadCloud} />
+          <ClubPostsModeration rows={clubRows} onChanged={loadCloud} notify={showMock} />
         </AdminCard>
       )}
 

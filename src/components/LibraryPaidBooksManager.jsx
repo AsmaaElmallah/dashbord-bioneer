@@ -14,6 +14,7 @@ import { libraryPdfPublishOptions, publishLabel } from '../services/supabase/lib
 import {
   deletePaidBook,
   emptyPaidBookDraft,
+  listPaidBookPurchases,
   listPaidBooks,
   savePaidBook,
   translateSectionsError,
@@ -103,7 +104,7 @@ export function LibraryPaidBooksManager() {
           </div>
         </div>
         <p className="text-caption" style={{ margin: '4px 0 12px' }}>
-          صورة الكتاب وتحتها النص (اكتبي السعر في النص لو حابة)، وزر واتساب للتواصل على الرقم المحفوظ فوق.
+          صورة الكتاب وتحتها النص، وزر واتساب للتواصل. لو حابة الدفع بـ PayPal كمان: اكتبي السعر بالدولار، وفعّلي PayPal من صفحة الاشتراكات.
         </p>
         <div className="filters-row">
           <select value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -138,9 +139,21 @@ export function LibraryPaidBooksManager() {
             النص تحت الصورة
             <textarea
               rows={4}
-              placeholder="وصف الكتاب، محتواه، السعر وطريقة الاستلام…"
+              placeholder="وصف الكتاب، محتواه، طريقة الاستلام…"
               value={draft.description}
               onChange={(e) => patch({ description: e.target.value })}
+            />
+          </label>
+          <label className="cms-field">
+            السعر بالدولار للدفع بـ PayPal (لو فاضي: زر PayPal مش هيظهر، والواتساب يفضل موجود)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              dir="ltr"
+              placeholder="4"
+              value={draft.priceUsd}
+              onChange={(e) => patch({ priceUsd: e.target.value })}
             />
           </label>
           <div className="grid-2" style={{ gap: 12 }}>
@@ -193,6 +206,7 @@ export function LibraryPaidBooksManager() {
                   <th>الصورة</th>
                   <th>العنوان</th>
                   <th>العمر</th>
+                  <th>PayPal</th>
                   <th>الحالة</th>
                   <th />
                 </tr>
@@ -212,6 +226,7 @@ export function LibraryPaidBooksManager() {
                       <div className="text-caption text-truncate">{book.description}</div>
                     </td>
                     <td>{ageBandLabel(book.ageBand)}</td>
+                    <td dir="ltr">{book.priceUsd ? `$${book.priceUsd}` : '—'}</td>
                     <td>
                       <StatusBadge tone={publishTone[book.publishStatus] ?? 'muted'}>
                         {publishLabel(book.publishStatus)}
@@ -244,6 +259,68 @@ export function LibraryPaidBooksManager() {
           </AdminTableContainer>
         )}
       </AdminCard>
+
+      <PaidBookPurchasesCard />
     </div>
+  );
+}
+
+function PaidBookPurchasesCard() {
+  const { showError } = useSnackbar();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await listPaidBookPurchases();
+    setLoading(false);
+    if (error) showError(translateSectionsError(error.message) ?? 'تعذّر تحميل مشتريات الكتب');
+    else setItems(data);
+  }, [showError]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  return (
+    <AdminCard>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <SectionHeader title="مشتريات PayPal" />
+        <button type="button" className="mock-btn mock-btn--outline" onClick={reload}>
+          <RefreshCw size={14} /> تحديث
+        </button>
+      </div>
+      <p className="text-caption" style={{ margin: '4px 0 12px' }}>
+        الأمهات اللي دفعوا ثمن كتاب بـ PayPal. طلبات الواتساب مش بتظهر هنا — بتيجي على الرقم فوق.
+      </p>
+      {loading ? (
+        <MockLoading label="جاري تحميل المشتريات…" />
+      ) : items.length === 0 ? (
+        <EmptyState icon={BookOpen} title="لا توجد مشتريات بعد" description="لما أم تدفع بـ PayPal هتظهر هنا." compact />
+      ) : (
+        <AdminTableContainer>
+          <table className="admin-table admin-table--compact">
+            <thead>
+              <tr>
+                <th>الإيميل</th>
+                <th>الاسم</th>
+                <th>الكتاب</th>
+                <th>التاريخ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={`${item.userId}-${item.bookId}`}>
+                  <td dir="ltr">{item.email || '—'}</td>
+                  <td>{item.name || '—'}</td>
+                  <td>{item.bookTitle || item.bookId}</td>
+                  <td>{item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </AdminTableContainer>
+      )}
+    </AdminCard>
   );
 }

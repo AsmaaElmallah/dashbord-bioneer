@@ -5,6 +5,7 @@ import {
   Hand,
   Mic,
   MicOff,
+  MonitorUp,
   PhoneOff,
   Radio,
   Square,
@@ -21,6 +22,7 @@ import { useSnackbar } from '../context/SnackbarContext';
 import {
   fetchLiveToken,
   listStageRequests,
+  setLiveScreenSharing,
   setLiveStatus,
   setStageRequestStatus,
   watchStageRequests,
@@ -145,12 +147,14 @@ export function LiveHostRoom({ session, onClose, onStatusChange, onRecorded }) {
   const [phase, setPhase] = useState('idle');
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  const [sharing, setSharing] = useState(false);
   const [remoteUsers, setRemoteUsers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [recordingSince, setRecordingSince] = useState(null);
   const [, setTick] = useState(0);
   const clientRef = useRef(null);
   const tracksRef = useRef([]);
+  const screenTracksRef = useRef([]);
   const localVideoRef = useRef(null);
   const gridRef = useRef(null);
   const recorderRef = useRef(null);
@@ -169,6 +173,7 @@ export function LiveHostRoom({ session, onClose, onStatusChange, onRecorded }) {
     try {
       const rec = createRoomRecorder(gridRef.current);
       rec.addAudio(tracksRef.current[0]?.getMediaStreamTrack());
+      rec.addAudio(screenTracksRef.current[1]?.getMediaStreamTrack());
       (clientRef.current?.remoteUsers ?? []).forEach((u) => rec.addAudio(u.audioTrack?.getMediaStreamTrack()));
       recorderRef.current = rec;
       setRecordingSince(rec.startedAt);
@@ -203,11 +208,13 @@ export function LiveHostRoom({ session, onClose, onStatusChange, onRecorded }) {
   }, [session.id, reloadRequests]);
 
   const cleanup = useCallback(async () => {
-    tracksRef.current.forEach((t) => {
+    [...tracksRef.current, ...screenTracksRef.current].forEach((t) => {
       t.stop();
       t.close();
     });
     tracksRef.current = [];
+    screenTracksRef.current = [];
+    setSharing(false);
     const client = clientRef.current;
     clientRef.current = null;
     if (client) await client.leave().catch(() => {});
@@ -274,6 +281,7 @@ export function LiveHostRoom({ session, onClose, onStatusChange, onRecorded }) {
   const end = async () => {
     if (!window.confirm('إنهاء اللايف لكل الأمهات؟')) return;
     await stopRecording();
+    if (screenTracksRef.current.length) setLiveScreenSharing(session.id, false);
     await cleanup();
     await setLiveStatus(session.id, 'ended');
     onStatusChange?.('ended');
@@ -294,6 +302,72 @@ export function LiveHostRoom({ session, onClose, onStatusChange, onRecorded }) {
     if (!cam) return;
     await cam.setEnabled(!camOn);
     setCamOn(!camOn);
+  };
+
+  const stopShare = async () => {
+    const screenTracks = screenTracksRef.current;
+    if (!screenTracks.length) return;
+    screenTracksRef.current = [];
+    setSharing(false);
+    const client = clientRef.current;
+    if (client) await client.unpublish(screenTracks).catch(() => {});
+    screenTracks.forEach((t) => {
+      t.stop();
+      t.close();
+    });
+    const cam = tracksRef.current[1];
+    if (client && cam) {
+      if (!cam.enabled) {
+        await cam.setEnabled(true);
+        setCamOn(true);
+      }
+      cam.play(localVideoRef.current);
+      await client.publish([cam]).catch((e) => showError(`تعذّر رجوع الكاميرا: ${e?.message ?? e}`));
+    }
+    setLiveScreenSharing(session.id, false);
+  };
+
+  /** Shows a window/tab/screen to the mothers instead of the camera (one video per host in Agora). */
+  const startShare = async () => {
+    const client = clientRef.current;
+    const cam = tracksRef.current[1];
+    if (!client || !cam) return;
+    let created;
+    try {
+      created = await AgoraRTC.createScreenVideoTrack(
+        { encoderConfig: '1080p_1', optimizationMode: 'detail' },
+        'auto',
+      );
+    } catch (e) {
+      const cancelled = e?.name === 'NotAllowedError' || /PERMISSION_DENIED|Permission denied/i.test(String(e?.message));
+      if (!cancelled) showError(`تعذّر مشاركة الشاشة: ${e?.message ?? e}`);
+      return;
+    }
+    const screenTracks = Array.isArray(created) ? created : [created];
+    const [screenVideo, screenAudio] = screenTracks;
+    try {
+      await client.unpublish([cam]);
+      cam.stop();
+      screenVideo.play(localVideoRef.current, { fit: 'contain' });
+      await client.publish(screenTracks);
+    } catch (e) {
+      screenTracks.forEach((t) => {
+        t.stop();
+        t.close();
+      });
+      cam.play(localVideoRef.current);
+      await client.publish([cam]).catch(() => {});
+      showError(`تعذّر مشاركة الشاشة: ${e?.message ?? e}`);
+      return;
+    }
+    screenTracksRef.current = screenTracks;
+    if (screenAudio) recorderRef.current?.addAudio(screenAudio.getMediaStreamTrack());
+    screenVideo.on('track-ended', () => {
+      stopShare();
+    });
+    setSharing(true);
+    const { error } = await setLiveScreenSharing(session.id, true);
+    if (error) showError('الشاشة اتشاركت، بس شغّلي SQL مشاركة الشاشة في Supabase عشان تظهر كاملة في التطبيق.');
   };
 
   const approvedCount = requests.filter((r) => r.status === 'approved').length;
@@ -323,7 +397,7 @@ export function LiveHostRoom({ session, onClose, onStatusChange, onRecorded }) {
           <div ref={localVideoRef} className="live-tile__video">
             {phase !== 'live' && <span className="text-caption">الكاميرا هتظهر هنا لما تبدئي اللايف</span>}
           </div>
-          <div className="live-tile__label">إنتي (المدرّبة)</div>
+          <div className="live-tile__label">{sharing ? 'الشاشة اللي بتتعرض للأمهات' : 'إنتي (المدرّبة)'}</div>
         </div>
         {remoteUsers.map((user) => (
           <RemoteTile key={user.uid} user={user} label={nameFor(user.uid)} />
@@ -340,9 +414,25 @@ export function LiveHostRoom({ session, onClose, onStatusChange, onRecorded }) {
             <button type="button" className="mock-btn mock-btn--outline" onClick={toggleMic}>
               {micOn ? <Mic size={16} /> : <MicOff size={16} />} {micOn ? 'كتم المايك' : 'تشغيل المايك'}
             </button>
-            <button type="button" className="mock-btn mock-btn--outline" onClick={toggleCam}>
-              {camOn ? <Video size={16} /> : <VideoOff size={16} />} {camOn ? 'قفل الكاميرا' : 'تشغيل الكاميرا'}
-            </button>
+            {sharing ? (
+              <button type="button" className="mock-btn mock-btn--primary" onClick={stopShare}>
+                <Video size={16} /> رجوع للكاميرا
+              </button>
+            ) : (
+              <>
+                <button type="button" className="mock-btn mock-btn--outline" onClick={toggleCam}>
+                  {camOn ? <Video size={16} /> : <VideoOff size={16} />} {camOn ? 'قفل الكاميرا' : 'تشغيل الكاميرا'}
+                </button>
+                <button
+                  type="button"
+                  className="mock-btn mock-btn--outline"
+                  onClick={startShare}
+                  title="اعرضي برزنتيشن أو صورة أو فيديو مفتوح على الجهاز"
+                >
+                  <MonitorUp size={16} /> مشاركة الشاشة
+                </button>
+              </>
+            )}
             {recordingSince ? (
               <button type="button" className="mock-btn mock-btn--outline" onClick={stopRecording}>
                 <Square size={14} /> وقّفي التسجيل ({formatElapsed(Date.now() - recordingSince)})

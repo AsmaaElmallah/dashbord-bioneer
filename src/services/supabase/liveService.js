@@ -67,6 +67,7 @@ function rowToSession(row) {
 
 export function validateLive(draft) {
   if (!draft.title.trim()) return 'اسم اللايف مطلوب.';
+  if (!draft.scheduledAt) return 'حددي ميعاد اللايف.';
   if (draft.accessType === 'course' && !draft.courseId) return 'اختاري الدورة اللي اللايف تبعها.';
   if (draft.recordingUrl.trim() && !parseYoutubeVideoId(draft.recordingUrl.trim())) {
     return 'رابط التسجيل لازم يكون رابط YouTube.';
@@ -95,19 +96,31 @@ export async function listLiveSessions() {
   return { data: (data ?? []).map(rowToSession), error };
 }
 
-export async function createCourseLiveSession(course) {
+export async function createCourseLiveSession(course, { title, scheduledAt } = {}) {
   if (offline()) return { data: null, error: OFFLINE_ERROR };
   if (!course?.id) return { data: null, error: new Error('اختاري الدورة الأول') };
+  if (!scheduledAt) return { data: null, error: new Error('حددي ميعاد اللايف') };
   return saveLiveSession({
     ...emptyLiveDraft(),
-    title: (course.title || 'لايف').trim(),
+    title: (title || course.title || 'لايف').trim(),
     instructorName: course.instructorName || '',
     coverUrl: course.coverUrl || '',
     accessType: 'course',
     courseId: course.id,
-    scheduledAt: toLocalInput(new Date().toISOString()),
+    scheduledAt,
     publishStatus: 'published',
   });
+}
+
+export async function updateLiveSchedule(id, scheduledAt) {
+  if (offline()) return { error: OFFLINE_ERROR };
+  if (!id) return { error: new Error('الجلسة غير موجودة') };
+  if (!scheduledAt) return { error: new Error('حددي ميعاد اللايف') };
+  const { error } = await supabase
+    .from(SESSIONS_TABLE)
+    .update({ scheduled_at: new Date(scheduledAt).toISOString() })
+    .eq('id', id);
+  return { error };
 }
 
 export async function saveLiveSession(draft) {
@@ -136,6 +149,13 @@ export async function saveLiveSession(draft) {
 export async function deleteLiveSession(id) {
   if (offline()) return { error: OFFLINE_ERROR };
   const { error } = await supabase.from(SESSIONS_TABLE).delete().eq('id', id);
+  return { error };
+}
+
+/** Tells the app to show the host video uncropped while a screen is being shared. */
+export async function setLiveScreenSharing(id, sharing) {
+  if (offline()) return { error: OFFLINE_ERROR };
+  const { error } = await supabase.from(SESSIONS_TABLE).update({ screen_sharing: sharing }).eq('id', id);
   return { error };
 }
 
