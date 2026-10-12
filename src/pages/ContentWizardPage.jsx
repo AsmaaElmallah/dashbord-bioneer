@@ -558,7 +558,7 @@ export function ContentWizardPage() {
                 ))}
               </p>
             )}
-            <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid rgba(196,181,253,0.35)' }} />
+            <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--outline-variant)' }} />
             <p className="text-caption">
               <strong>لـ:</strong> {ageTargetingShortLabel(wizard.ageTargeting)} ·{' '}
               <strong>باقة:</strong> {wizard.requiredPlan}

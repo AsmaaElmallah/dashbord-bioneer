@@ -55,6 +55,13 @@ textarea {
   font-family: inherit;
 }
 
+input,
+select,
+textarea {
+  background: var(--surface-bright);
+  color: var(--on-surface);
+}
+
 .page-stack {
   display: flex;
   flex-direction: column;

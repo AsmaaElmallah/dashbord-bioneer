@@ -17,6 +17,7 @@ import {
   coursePublishOptions,
   deleteLesson,
   emptyLessonDraft,
+  isAllowedCourseVideoFile,
   listLessons,
   prepareLesson,
   removeCourseVideo,
@@ -90,7 +91,7 @@ export function CourseLessonsManager({ course, onLessonsChanged }) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('video/')) {
+    if (!isAllowedCourseVideoFile(file)) {
       showError('اختاري ملف فيديو (MP4 أو WEBM أو MOV).');
       return;
     }
@@ -105,17 +106,22 @@ export function CourseLessonsManager({ course, onLessonsChanged }) {
       return;
     }
     setUploading(true);
-    const { data, error } = await uploadCourseVideo(course.id, file);
-    setUploading(false);
-    if (error || !data?.path) {
-      showError(translateCoursesError(error?.message) ?? 'تعذّر رفع الفيديو');
-      return;
+    try {
+      const { data, error } = await uploadCourseVideo(course.id, file);
+      if (error || !data?.path) {
+        showError(translateCoursesError(error?.message) ?? 'تعذّر رفع الفيديو');
+        return;
+      }
+      const previous = draft.videoPath;
+      const savedPaths = new Set(lessons.map((l) => l.videoPath).filter(Boolean));
+      if (previous && !savedPaths.has(previous)) await removeCourseVideo(previous);
+      patch({ sourceType: 'upload', videoPath: data.path, videoSizeBytes: data.size });
+      showSuccess('تم رفع الفيديو — اضغطي «حفظ الدرس»');
+    } catch (err) {
+      showError(translateCoursesError(err?.message) ?? 'تعذّر رفع الفيديو');
+    } finally {
+      setUploading(false);
     }
-    const previous = draft.videoPath;
-    const savedPaths = new Set(lessons.map((l) => l.videoPath).filter(Boolean));
-    if (previous && !savedPaths.has(previous)) await removeCourseVideo(previous);
-    patch({ sourceType: 'upload', videoPath: data.path, videoSizeBytes: data.size });
-    showSuccess('تم رفع الفيديو — اضغطي «حفظ الدرس»');
   };
 
   const onSave = async () => {

@@ -1,44 +1,29 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminCard } from '../components/AdminCard';
+import { EmptyState } from '../components/EmptyState';
 import { InfoBanner } from '../components/InfoBanner';
-import { StatCard } from '../components/StatCard';
-import { SectionHeader } from '../components/SectionHeader';
-import { MockActionButton } from '../components/MockActionButton';
+import { MockLoading } from '../components/MockLoading';
 import { PageHeader } from '../components/PageHeader';
-import { StatusBadge } from '../components/StatusBadge';
-import {
-  overviewStats,
-  curriculumProgress,
-  contentStatus,
-  topSectionsUsage,
-  alerts,
-} from '../data/mockData';
+import { SectionHeader } from '../components/SectionHeader';
+import { StatCard } from '../components/StatCard';
+import { useSnackbar } from '../context/SnackbarContext';
+import { isSupabaseEnabled } from '../lib/supabaseClient';
+import { fetchDashboardOverview } from '../services/supabase/overviewService';
 
-function BarChartRows({ items, valueKey = 'sessions', max }) {
-  const peak = max ?? Math.max(...items.map((i) => i[valueKey]));
-  return (
-    <>
-      {items.map((item) => (
-        <div key={item.name} className="progress-row">
-          <span className="progress-row__label">{item.name}</span>
-          <div className="progress-row__bar">
-            <div
-              className="progress-row__fill"
-              style={{
-                width: `${peak ? (item[valueKey] / peak) * 100 : 0}%`,
-                background: item.color ?? 'var(--primary)',
-              }}
-            />
-          </div>
-          <span className="progress-row__pct">{item[valueKey].toLocaleString('ar-EG')}</span>
-        </div>
-      ))}
-    </>
-  );
-}
+const shortcuts = [
+  { to: '/courses', label: 'الدورات', hint: 'فيديو التعريف والدروس واللايف' },
+  { to: '/library', label: 'المكتبة', hint: 'PDF والكتب والفيديو' },
+  { to: '/community', label: 'المجتمع', hint: 'شكاوى واستشارات ونادي الأمهات' },
+  { to: '/subscriptions', label: 'الاشتراكات', hint: 'الباقات ومنح اشتراك' },
+  { to: '/users', label: 'المستخدمون', hint: 'عرض الحسابات والأطفال' },
+  { to: '/onboarding', label: 'فيديوهات التعريف', hint: 'أول شاشات التطبيق' },
+];
 
 export function OverviewPage() {
-  const navigate = useNavigate();
+  const { showError } = useSnackbar();
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState(null);
   const today = new Date().toLocaleDateString('ar-EG', {
     weekday: 'long',
     year: 'numeric',
@@ -46,82 +31,83 @@ export function OverviewPage() {
     day: 'numeric',
   });
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data, error, offline } = await fetchDashboardOverview();
+      if (cancelled) return;
+      if (offline) {
+        showError('Supabase غير مفعّل');
+      } else if (error) {
+        showError('تعذّر تحميل النظرة العامة');
+      }
+      setOverview(data);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showError]);
+
   return (
     <div className="page-stack">
       <PageHeader title="نظرة عامة على بيانور" />
       <p className="text-caption" style={{ margin: 0 }}>{today}</p>
 
-      <div className="grid-3">
-        {overviewStats.map((s) => (
-          <StatCard key={s.label} label={s.label} value={s.value} />
-        ))}
-      </div>
+      {!isSupabaseEnabled && (
+        <InfoBanner tone="warning">فعّلي الاتصال بقاعدة البيانات لعرض الأرقام الحقيقية.</InfoBanner>
+      )}
 
-      <div className="grid-2">
+      {loading && (
         <AdminCard>
-          <SectionHeader title="تقدم المناهج" />
-          {curriculumProgress.map((c) => (
-            <div key={c.name} className="progress-row">
-              <span className="progress-row__label">{c.name}</span>
-              <div className="progress-row__bar">
-                <div
-                  className="progress-row__fill"
-                  style={{ width: `${c.pct}%`, background: c.color }}
-                />
-              </div>
-              <span className="progress-row__pct">{c.pct}%</span>
-            </div>
-          ))}
+          <MockLoading label="جاري تحميل الأرقام من السحابة…" />
         </AdminCard>
+      )}
 
-        <AdminCard>
-          <SectionHeader title="حالة المحتوى" />
-          {contentStatus.map((row) => (
-            <div key={row.type} style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span className="text-body" style={{ fontWeight: 600 }}>{row.type}</span>
-                <StatusBadge tone={row.pct >= 90 ? 'success' : row.pct === 0 ? 'error' : 'warning'}>
-                  {row.ready.toLocaleString('ar-EG')} / {row.total.toLocaleString('ar-EG')}
-                </StatusBadge>
-              </div>
-              <div className="progress-row" style={{ marginBottom: 0 }}>
-                <div className="progress-row__bar">
-                  <div className="progress-row__fill" style={{ width: `${row.pct}%` }} />
-                </div>
-                <span className="progress-row__pct">{row.pct}%</span>
-              </div>
-            </div>
-          ))}
-        </AdminCard>
-      </div>
-
-      <div className="grid-2">
-        <AdminCard>
-          <SectionHeader title="أكثر الأقسام استخداماً (اليوم)" />
-          <BarChartRows items={topSectionsUsage} />
-        </AdminCard>
-
-        <AdminCard>
-          <SectionHeader title="تنبيهات تشغيلية" />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {alerts.map((text) => (
-              <InfoBanner key={text} tone={text.includes('mp3') || text.includes('onboarding') ? 'warning' : 'info'}>
-                {text}
-              </InfoBanner>
-            ))}
+      {!loading && overview && (
+        <>
+          <div className="grid-3">
+            <StatCard label="المستخدمون" value={String(overview.users)} />
+            <StatCard label="الأطفال" value={String(overview.children)} />
+            <StatCard label="اشتراكات نشطة" value={String(overview.activeSubs)} />
+            <StatCard label="الدورات" value={String(overview.courses)} />
+            <StatCard label="رسائل بانتظار رد" value={String(overview.openFeedback)} />
+            <StatCard label="استشارات مفتوحة" value={String(overview.openConsultations)} />
           </div>
-        </AdminCard>
-      </div>
+
+          <AdminCard>
+            <SectionHeader title="الاشتراكات حسب الباقة" />
+            {overview.planRows.length === 0 ? (
+              <EmptyState compact title="لا باقات بعد" description="أضيفي باقة من صفحة الاشتراكات." />
+            ) : (
+              overview.planRows.map((row) => (
+                <div key={row.planId || row.plan} className="progress-row">
+                  <span className="progress-row__label">{row.plan}</span>
+                  <div className="progress-row__bar">
+                    <div
+                      className="progress-row__fill"
+                      style={{
+                        width: `${
+                          overview.activeSubs
+                            ? Math.max(8, (row.active / overview.activeSubs) * 100)
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                  <span className="progress-row__pct">{row.active}</span>
+                </div>
+              ))
+            )}
+          </AdminCard>
+        </>
+      )}
 
       <AdminCard>
-        <SectionHeader title="اختصارات النموذج التفاعلي" />
+        <SectionHeader title="اختصارات" />
         <div className="grid-2">
-          {[
-            { to: '/users', label: 'المستخدمون والأطفال', hint: 'اضغط صفاً → لوحة تفاصيل' },
-            { to: '/targeting', label: 'توجيه المحتوى', hint: 'غيّر الخيارات → المعاينة' },
-            { to: '/community', label: 'المجتمع والدعم', hint: 'اختر شكوى → التفاصيل' },
-            { to: '/curriculum', label: 'المناهج', hint: 'افتح مساراً → إدارة المحتوى' },
-          ].map((item) => (
+          {shortcuts.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -133,22 +119,6 @@ export function OverviewPage() {
             </Link>
           ))}
         </div>
-      </AdminCard>
-
-      <AdminCard>
-        <SectionHeader
-          title="إجراءات سريعة"
-          action={
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <MockActionButton>إضافة محتوى</MockActionButton>
-              <MockActionButton variant="secondary" onClick={() => navigate('/community')}>
-                مراجعة شكوى
-              </MockActionButton>
-              <MockActionButton variant="outline" action="publish">نشر إشعار</MockActionButton>
-              <MockActionButton variant="outline" action="check">فحص ملفات ناقصة</MockActionButton>
-            </div>
-          }
-        />
       </AdminCard>
     </div>
   );

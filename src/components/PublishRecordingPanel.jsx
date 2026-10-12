@@ -165,9 +165,8 @@ export function PublishRecordingPanel({ session, courses, recorded, onClose, onP
       <label className="cms-field">
         هيتنشر فين؟
         <select value={mode} onChange={(e) => setMode(e.target.value)}>
-          <option value="existing">درس في دورة موجودة</option>
-          <option value="new">دورة جديدة لوحدها</option>
-          <option value="lives_only">في قسم اللايفات بس (بنفس صلاحية اللايف)</option>
+          <option value="existing">درس في الدورة دي</option>
+          <option value="new">دورة جديدة من التسجيل</option>
         </select>
       </label>
 

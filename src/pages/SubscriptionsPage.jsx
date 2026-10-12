@@ -9,7 +9,6 @@ import { SectionHeader } from '../components/SectionHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
 import { isSupabaseEnabled } from '../lib/supabaseClient';
-import { plans as mockPlans, subscriptions as mockSubs } from '../data/mockData';
 import { GrantSubscriptionCard } from '../components/GrantSubscriptionCard';
 import { PaymentSettingsCard } from '../components/PaymentSettingsCard';
 import {
@@ -75,13 +74,12 @@ export function SubscriptionsPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [expiringOnly, setExpiringOnly] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [remotePlans, setRemotePlans] = useState(null);
-  const [remoteSubs, setRemoteSubs] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [remotePlans, setRemotePlans] = useState([]);
+  const [remoteSubs, setRemoteSubs] = useState([]);
 
-  const plans = isSupabaseEnabled && remotePlans ? remotePlans : mockPlans;
-  const subscriptions =
-    isSupabaseEnabled && remoteSubs ? remoteSubs : mockSubs;
+  const plans = remotePlans ?? [];
+  const subscriptions = remoteSubs ?? [];
 
   const reload = async () => {
     if (!isSupabaseEnabled) return;
@@ -90,14 +88,17 @@ export function SubscriptionsPage() {
       fetchSubscriptionPlans(),
       fetchUserSubscriptions(),
     ]);
-    if (p.data) setRemotePlans(p.data);
-    if (s.data) setRemoteSubs(s.data);
+    setRemotePlans(p.data ?? []);
+    setRemoteSubs(s.data ?? []);
     if (p.error || s.error) showMock('تعذّر تحميل الاشتراكات من Supabase');
     setLoading(false);
   };
 
   useEffect(() => {
-    if (!isSupabaseEnabled) return undefined;
+    if (!isSupabaseEnabled) {
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -106,8 +107,8 @@ export function SubscriptionsPage() {
         fetchUserSubscriptions(),
       ]);
       if (!cancelled) {
-        if (p.data) setRemotePlans(p.data);
-        if (s.data) setRemoteSubs(s.data);
+        setRemotePlans(p.data ?? []);
+        setRemoteSubs(s.data ?? []);
         if (p.error || s.error) showMock('تعذّر تحميل الاشتراكات من Supabase');
         setLoading(false);
       }
@@ -142,7 +143,6 @@ export function SubscriptionsPage() {
     <div className="page-stack">
       <PageHeader
         title="الاشتراكات والباقات"
-        extraBadges={isSupabaseEnabled && remotePlans ? ['Supabase'] : ['mock data']}
       />
 
       <SectionHeader title="الباقات الحالية" />
@@ -151,12 +151,15 @@ export function SubscriptionsPage() {
           <MockLoading label="جاري تحميل الاشتراكات…" />
         </AdminCard>
       )}
+      {!loading && plans.length === 0 && (
+        <EmptyState title="لا باقات" description="مافيش باقات على السحابة بعد." />
+      )}
       <div className="grid-2">
         {plans.map((p) => (
           <AdminCard
             key={p.id}
             className="plan-card"
-            style={{ background: p.accent, borderColor: 'rgba(109, 40, 217, 0.2)' }}
+            style={{ background: p.accent, borderColor: 'rgba(183, 123, 114, 0.2)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 8 }}>
               <h3 style={{ margin: 0 }}>{p.title}</h3>

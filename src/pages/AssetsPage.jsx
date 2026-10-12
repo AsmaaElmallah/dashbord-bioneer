@@ -11,7 +11,6 @@ import { StatCard } from '../components/StatCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
 import { isSupabaseEnabled } from '../lib/supabaseClient';
-import { assetFiles, assetManagerSummary, assetSections } from '../data/mockData';
 import {
   listAdminAssets,
   removeAdminAsset,
@@ -28,13 +27,13 @@ export function AssetsPage() {
   const { showMock } = useSnackbar();
   const fileRef = useRef(null);
   const [sectionId, setSectionId] = useState('all');
-  const [remoteFiles, setRemoteFiles] = useState(null);
+  const [remoteFiles, setRemoteFiles] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const cloud = isSupabaseEnabled && remoteFiles != null;
-  const files = cloud ? remoteFiles : assetFiles;
+  const files = remoteFiles ?? [];
 
   const filtered = useMemo(() => {
     if (sectionId === 'all') return files;
@@ -63,14 +62,12 @@ export function AssetsPage() {
   const selected =
     filtered.find((a) => a.id === selectedId) ?? filtered[0] ?? null;
 
-  const summary = cloud
-    ? {
-        total: remoteFiles.length,
-        images: remoteFiles.filter((f) => f.kind === 'image').length,
-        audio: remoteFiles.filter((f) => f.kind === 'audio').length,
-        video: remoteFiles.filter((f) => f.kind === 'video').length,
-      }
-    : assetManagerSummary;
+  const summary = {
+    total: files.length,
+    images: files.filter((f) => f.kind === 'image').length,
+    audio: files.filter((f) => f.kind === 'audio').length,
+    video: files.filter((f) => f.kind === 'video').length,
+  };
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -109,13 +106,10 @@ export function AssetsPage() {
     <div className="page-stack">
       <PageHeader
         title="مدير الأصول"
-        extraBadges={cloud ? ['Supabase Storage'] : ['mock data']}
       />
 
       <InfoBanner tone="info">
-        {cloud
-          ? 'الملفات من bucket admin-uploads — ارفعي صوراً/صوت/فيديو للاستخدام في المحتوى.'
-          : 'عرض mock — فعّلي Supabase لربط Storage الحقيقي.'}
+        الملفات من مجلد الرفع على السحابة. ارفعي صورة أو صوت أو فيديو للاستخدام في المحتوى.
       </InfoBanner>
 
       <div className="grid-4">
@@ -128,15 +122,12 @@ export function AssetsPage() {
       <div className="filters-row">
         <select value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
           <option value="all">كل الأنواع</option>
-          {(cloud
-            ? [
-                ['image', 'صور'],
-                ['audio', 'صوت'],
-                ['video', 'فيديو'],
-                ['file', 'ملفات'],
-              ]
-            : assetSections.map((s) => [s.id, s.label])
-          ).map(([id, label]) => (
+          {[
+            ['image', 'صور'],
+            ['audio', 'صوت'],
+            ['video', 'فيديو'],
+            ['file', 'ملفات'],
+          ].map(([id, label]) => (
             <option key={id} value={id}>
               {label}
             </option>

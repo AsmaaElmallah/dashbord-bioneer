@@ -202,7 +202,7 @@
     display: block;
     margin-bottom: 12px;
     padding: 12px 14px;
-    border: 1px solid rgba(196, 181, 253, 0.35);
+    border: 1px solid rgba(220, 207, 189, 0.35);
     border-radius: var(--radius-md);
     background: var(--surface);
     box-shadow: var(--shadow-clay);
@@ -219,7 +219,7 @@
     align-items: flex-start;
     gap: 12px;
     padding: 8px 0;
-    border-bottom: 1px solid rgba(196, 181, 253, 0.15);
+    border-bottom: 1px solid rgba(220, 207, 189, 0.15);
     text-align: left;
   }
 
@@ -256,11 +256,11 @@
     right: 0;
     z-index: 120;
     background: var(--surface);
-    border-top: 1px solid rgba(196, 181, 253, 0.4);
+    border-top: 1px solid rgba(220, 207, 189, 0.4);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
     justify-content: space-around;
     gap: 2px;
-    box-shadow: 0 -4px 16px rgba(109, 40, 217, 0.1);
+    box-shadow: 0 -4px 16px rgba(183, 123, 114, 0.1);
   }
 
   .mobile-bottom-nav__link {

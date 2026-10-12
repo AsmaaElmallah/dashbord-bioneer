@@ -33,7 +33,7 @@ export async function fetchSubscriptionPlans() {
       storeAndroid: row.store_product_id_android ?? '',
       subscribers: 0,
       revenue: '—',
-      accent: 'linear-gradient(135deg, #faf5ff, #f3e8ff)',
+      accent: 'linear-gradient(135deg, #fff8f1, #f6e8e5)',
       badge: row.id === 'gold' ? 'الأكثر توفيراً' : null,
     })),
     error: null,

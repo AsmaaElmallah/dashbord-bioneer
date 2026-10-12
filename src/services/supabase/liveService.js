@@ -76,6 +76,16 @@ export function validateLive(draft) {
   return null;
 }
 
+export async function listCourseLiveSessions(courseId) {
+  if (offline() || !courseId) return { data: [], error: null };
+  const { data, error } = await supabase
+    .from(SESSIONS_TABLE)
+    .select('*')
+    .eq('course_id', courseId)
+    .order('scheduled_at', { ascending: false, nullsFirst: true });
+  return { data: (data ?? []).map(rowToSession), error };
+}
+
 export async function listLiveSessions() {
   if (offline()) return { data: [], error: null };
   const { data, error } = await supabase
@@ -85,15 +95,32 @@ export async function listLiveSessions() {
   return { data: (data ?? []).map(rowToSession), error };
 }
 
+export async function createCourseLiveSession(course) {
+  if (offline()) return { data: null, error: OFFLINE_ERROR };
+  if (!course?.id) return { data: null, error: new Error('اختاري الدورة الأول') };
+  return saveLiveSession({
+    ...emptyLiveDraft(),
+    title: (course.title || 'لايف').trim(),
+    instructorName: course.instructorName || '',
+    coverUrl: course.coverUrl || '',
+    accessType: 'course',
+    courseId: course.id,
+    scheduledAt: toLocalInput(new Date().toISOString()),
+    publishStatus: 'published',
+  });
+}
+
 export async function saveLiveSession(draft) {
   if (offline()) return { data: null, error: OFFLINE_ERROR };
+  const courseId = String(draft.courseId ?? '').trim() || null;
+  const accessType = courseId ? 'course' : draft.accessType === 'course' ? 'subscription' : draft.accessType;
   const row = {
     title: draft.title.trim(),
     description: draft.description.trim(),
     instructor_name: draft.instructorName.trim(),
     cover_url: draft.coverUrl?.trim() || null,
-    access_type: draft.accessType,
-    course_id: draft.accessType === 'course' ? draft.courseId : null,
+    access_type: accessType,
+    course_id: courseId,
     scheduled_at: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : null,
     max_stage: Number(draft.maxStage) || 6,
     recording_youtube_id: parseYoutubeVideoId(draft.recordingUrl.trim()) || null,
@@ -200,6 +227,9 @@ export async function saveAgoraAppId(value) {
 
 export function translateLiveError(message) {
   const m = message?.toLowerCase() ?? '';
+  if (m.includes('live_sessions_course_check')) {
+    return 'اللايف لازم يبقى مربوط بدورة. امسحي لايفات الدورة الأول، أو أنشئيه من صفحة الدورة.';
+  }
   if (m.includes('agora_not_configured')) return 'حطي Agora App ID في إعدادات اللايف الأول.';
   if (m.includes('live_sessions') && (m.includes('does not exist') || m.includes('schema cache'))) {
     return 'جداول اللايف مش موجودة — شغّلي migration 20260526100026_live_sessions.sql في Supabase.';

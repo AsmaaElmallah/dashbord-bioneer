@@ -12,7 +12,6 @@ import { VisualPage } from './pages/VisualPage';
 import { EmotionalPage } from './pages/EmotionalPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { CoursesPage } from './pages/CoursesPage';
-import { LivePage } from './pages/LivePage';
 import { ActivitiesPage } from './pages/ActivitiesPage';
 import { AssessmentsPage } from './pages/AssessmentsPage';
 import { CommunityPage } from './pages/CommunityPage';
@@ -85,7 +84,7 @@ export default function App() {
             <Route path="emotional" element={<EmotionalPage />} />
             <Route path="library" element={<LibraryPage />} />
             <Route path="courses" element={<CoursesPage />} />
-            <Route path="live" element={<LivePage />} />
+            <Route path="live" element={<Navigate to="/courses" replace />} />
             <Route path="activities" element={<ActivitiesPage />} />
             <Route path="assessments" element={<AssessmentsPage />} />
             <Route path="community" element={<CommunityPage />} />

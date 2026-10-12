@@ -4,7 +4,8 @@ import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { CourseEnrollmentsPanel } from '../components/CourseEnrollmentsPanel';
 import { CourseLessonsManager } from '../components/CourseLessonsManager';
-import { CourseResourcesPanel } from '../components/CourseResourcesPanel';
+import { CoursesHubCard } from '../components/CoursesHubCard';
+import { CourseLivePanel } from '../components/CourseLivePanel';
 import { EmptyState } from '../components/EmptyState';
 import { InfoBanner } from '../components/InfoBanner';
 import { MediaCoverPick } from '../components/MediaCoverPick';
@@ -94,10 +95,12 @@ export function CoursesPage() {
     <div className="page-stack">
       <PageHeader title="الدورات" extraBadges={[`${courses.length} دورة`]} />
       <InfoBanner tone="info">
-        كل دورة ليها صورة ووصف ودروس فيديو. فيديو الدرس يترفع على Supabase (حد أقصى 50 ميجا للملف في الباقة
-        المجانية — اضغطي الفيديو ببرنامج HandBrake على 720p)، أو حطي رابط YouTube «غير مُدرج» للفيديوهات الطويلة.
-        الدورات المدفوعة تتفتح للأم من هنا يدوياً لحد ما نربط الشراء من المتجر.
+        الأم بتفتح صفحة واحدة اسمها الدورات. فوق: فيديو التعريف (الكارت الأول هنا). بعد كده تختار اسم الدورة من
+        الشريط، وتحت تظهر دروس الدورة دي. ارفعي فيديوهات كل دورة من الجدول — مجاني أو مدفوع. اللايف من جوه الدورة
+        المختارة.
       </InfoBanner>
+
+      <CoursesHubCard />
 
       <AdminCard>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -257,38 +260,7 @@ export function CoursesPage() {
                 onChange={(e) => patch({ categoryLabel: e.target.value })}
               />
             </label>
-            <label className="cms-field">
-              اسم المدرّبة
-              <input
-                type="text"
-                value={draft.instructorName}
-                onChange={(e) => patch({ instructorName: e.target.value })}
-              />
-            </label>
-            <label className="cms-field">
-              لقب المدرّبة
-              <input
-                type="text"
-                placeholder="مثال: استشارية تطور الرضع والطب السلوكي"
-                value={draft.instructorTitle}
-                onChange={(e) => patch({ instructorTitle: e.target.value })}
-              />
-            </label>
           </div>
-          <MediaCoverPick
-            label="صورة المدرّبة (اختياري)"
-            value={draft.instructorAvatarUrl}
-            onChange={(url) => patch({ instructorAvatarUrl: url })}
-          />
-          <label className="cms-field">
-            وصف الدورة
-            <textarea
-              rows={4}
-              placeholder="الدورة دي هتتعلمي فيها…"
-              value={draft.description}
-              onChange={(e) => patch({ description: e.target.value })}
-            />
-          </label>
           <div className="grid-2" style={{ gap: 12 }}>
             <label className="cms-field">
               الوصول
@@ -391,10 +363,16 @@ export function CoursesPage() {
       )}
 
       {selected && (
-        <CourseLessonsManager key={selected.id} course={selected} onLessonsChanged={reload} />
+        <CourseLivePanel
+          key={`live_${selected.id}`}
+          course={selected}
+          onChanged={reload}
+        />
       )}
 
-      {selected && <CourseResourcesPanel key={`files_${selected.id}`} course={selected} />}
+      {selected && (
+        <CourseLessonsManager key={selected.id} course={selected} onLessonsChanged={reload} />
+      )}
 
       {selected && selected.accessType !== 'free' && (
         <CourseEnrollmentsPanel key={`enroll_${selected.id}`} course={selected} />

@@ -81,7 +81,7 @@
   font-size: 0.78rem;
   color: var(--on-surface-variant);
   text-align: center;
-  border: 1px dashed rgba(196, 181, 253, 0.45);
+  border: 1px dashed rgba(220, 207, 189, 0.45);
   border-radius: var(--radius-sm);
   background: var(--surface-muted);
 }
@@ -96,7 +96,7 @@
   color: var(--on-surface-variant);
   background: var(--surface-muted);
   border-radius: var(--radius-md);
-  border: 1px solid rgba(196, 181, 253, 0.25);
+  border: 1px solid rgba(220, 207, 189, 0.25);
 }
 
 .mock-loading__icon {
@@ -169,15 +169,15 @@
 }
 
 .login-page__warn {
-  background: rgba(251, 191, 36, 0.12);
-  color: var(--on-surface);
-  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  border: 1px solid rgba(199, 146, 84, 0.35);
 }
 
 .login-page__error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #b91c1c;
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: var(--error-container);
+  color: var(--on-error-container);
+  border: 1px solid rgba(196, 92, 92, 0.25);
 }
 
 .login-page__hint {

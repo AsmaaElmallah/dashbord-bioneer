@@ -3,20 +3,10 @@ import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { EmptyState } from '../components/EmptyState';
 import { InfoBanner } from '../components/InfoBanner';
-import { MockActionButton } from '../components/MockActionButton';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
-import {
-  commonChildProblems,
-  communityFaqItems,
-  consultationRequests,
-  mothersClubPosts,
-  supportTicketColumns,
-  supportTickets,
-  supportTopics,
-} from '../data/mockData';
 import {
   fetchClubPosts,
   fetchCommunityFaq,
@@ -36,11 +26,8 @@ const tabs = [
   ['consultations', 'الاستشارات'],
   ['club', 'نادي الأمهات'],
   ['faq', 'الأسئلة الشائعة'],
-  ['childProblems', 'مشاكل الأطفال الشائعة'],
 ];
 
-const postTone = { منشور: 'success', مخفي: 'muted', 'يحتاج مراجعة': 'warning' };
-const priorityTone = { عالية: 'error', متوسطة: 'warning', منخفضة: 'info' };
 const boardTone = {
   new: 'info',
   in_review: 'warning',
@@ -51,7 +38,6 @@ const boardTone = {
 export function CommunityPage() {
   const { showMock } = useSnackbar();
   const [tab, setTab] = useState('complaints');
-  const [selectedId, setSelectedId] = useState(null);
 
   const [faqItems, setFaqItems] = useState([]);
   const [feedbackRows, setFeedbackRows] = useState([]);
@@ -87,15 +73,6 @@ export function CommunityPage() {
     loadCloud();
   }, []);
 
-  const ticketType = tab === 'complaints' ? 'شكوى' : tab === 'suggestions' ? 'اقتراح' : null;
-
-  const filteredTickets = useMemo(() => {
-    if (!ticketType) return [];
-    return supportTickets.filter((t) => t.type === ticketType);
-  }, [ticketType]);
-
-  const selected = supportTickets.find((t) => t.id === selectedId);
-
   const cloudFeedback = useMemo(() => {
     if (tab === 'complaints') return feedbackRows.filter((r) => r.kind === 'complaint');
     if (tab === 'suggestions') return feedbackRows.filter((r) => r.kind === 'suggestion');
@@ -107,24 +84,14 @@ export function CommunityPage() {
 
   useEffect(() => {
     if (tab !== 'complaints' && tab !== 'suggestions') return;
-    if (cloudReady) {
-      if (cloudFeedback.length === 0) {
-        setSelectedFeedbackId(null);
-        return;
-      }
-      setSelectedFeedbackId((prev) =>
-        prev && cloudFeedback.some((t) => t.id === prev) ? prev : cloudFeedback[0].id,
-      );
+    if (cloudFeedback.length === 0) {
+      setSelectedFeedbackId(null);
       return;
     }
-    if (filteredTickets.length === 0) {
-      setSelectedId(null);
-      return;
-    }
-    setSelectedId((prev) =>
-      prev && filteredTickets.some((t) => t.id === prev) ? prev : filteredTickets[0].id,
+    setSelectedFeedbackId((prev) =>
+      prev && cloudFeedback.some((t) => t.id === prev) ? prev : cloudFeedback[0].id,
     );
-  }, [tab, filteredTickets, cloudReady, cloudFeedback]);
+  }, [tab, cloudFeedback]);
 
   useEffect(() => {
     setReplyDraft(selectedCloudFeedback?.admin_reply ?? '');
@@ -133,8 +100,6 @@ export function CommunityPage() {
   useEffect(() => {
     setConsultationNote(selectedConsultation?.admin_note ?? '');
   }, [selectedConsultation?.id, selectedConsultation?.admin_note]);
-
-  const ticketsByColumn = (col) => filteredTickets.filter((t) => t.boardStatus === col);
 
   const handleFeedbackReply = async () => {
     if (!selectedFeedbackId || !replyDraft.trim()) {
@@ -226,9 +191,9 @@ export function CommunityPage() {
     <div className="page-stack">
       <PageHeader title="المجتمع والدعم" />
       {cloudReady ? (
-        <InfoBanner tone="info">البيانات السحابية مفعّلة — FAQ / الشكاوى / الاستشارات / النادي من Supabase.</InfoBanner>
+        <InfoBanner tone="info">الشكاوى والاستشارات ونادي الأمهات والأسئلة من التطبيق مباشرة.</InfoBanner>
       ) : (
-        <InfoBanner tone="warning">Supabase غير متصل — يظهر المحتوى المحلي كعرض فقط.</InfoBanner>
+        <InfoBanner tone="warning">السحابة غير متصلة — لا تظهر رسائل حقيقية حتى يتم الاتصال.</InfoBanner>
       )}
 
       <div className="tabs">
@@ -239,7 +204,6 @@ export function CommunityPage() {
             className={`tab ${tab === id ? 'active' : ''}`}
             onClick={() => {
               setTab(id);
-              setSelectedId(null);
             }}
           >
             {label}
@@ -249,7 +213,12 @@ export function CommunityPage() {
 
       {(tab === 'complaints' || tab === 'suggestions') && (
         <>
-          {cloudReady && (
+          {!cloudReady ? (
+            <EmptyState
+              title={tab === 'complaints' ? 'لا شكاوى' : 'لا اقتراحات'}
+              description="اتصلي بقاعدة البيانات لعرض رسائل الأمهات."
+            />
+          ) : (
             <AdminCard>
               <SectionHeader title={`${tab === 'complaints' ? 'شكاوى' : 'اقتراحات'} من التطبيق`} />
               <AdminTableContainer>
@@ -292,81 +261,10 @@ export function CommunityPage() {
             </AdminCard>
           )}
 
-          <div className="ticket-board">
-
-            {supportTicketColumns.map((col) => (
-              <div key={col} className="ticket-board__column">
-                <h4 className="ticket-board__title">{col}</h4>
-                {ticketsByColumn(col).length === 0 ? (
-                  <p className="ticket-board__empty">
-                    {tab === 'complaints' ? 'لا توجد شكاوى' : 'لا توجد اقتراحات'} في «{col}»
-                  </p>
-                ) : (
-                  ticketsByColumn(col).map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      className={`ticket-board__card${selectedId === t.id ? ' ticket-board__card--selected' : ''}`}
-                      onClick={() => setSelectedId(t.id)}
-                    >
-                      <strong>#{t.id}</strong> {t.title}
-                      <span className="text-caption">{t.user}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid-2">
-            <AdminCard>
-              <SectionHeader title="جدول التذاكر" />
-              {filteredTickets.length === 0 ? (
-                <EmptyState
-                  title={tab === 'complaints' ? 'لا توجد شكاوى' : 'لا توجد اقتراحات'}
-                  description="لا تذاكر من هذا النوع في البيانات mock حالياً."
-                  compact
-                />
-              ) : (
-              <AdminTableContainer>
-                <table className="admin-table admin-table--compact admin-table--cards">
-                  <thead>
-                    <tr>
-                      <th>العنوان</th>
-                      <th>النوع</th>
-                      <th>المستخدم</th>
-                      <th>التاريخ</th>
-                      <th>الأولوية</th>
-                      <th>الحالة</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTickets.map((t) => (
-                      <tr
-                        key={t.id}
-                        className={selectedId === t.id ? 'selected' : ''}
-                        onClick={() => setSelectedId(t.id)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <td data-label="العنوان">{t.title}</td>
-                        <td data-label="النوع">{t.type}</td>
-                        <td data-label="المستخدم">{t.user}</td>
-                        <td data-label="التاريخ">{t.date}</td>
-                        <td data-label="الأولوية">
-                          <StatusBadge tone={priorityTone[t.priority]}>{t.priority}</StatusBadge>
-                        </td>
-                        <td data-label="الحالة">{t.boardStatus}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </AdminTableContainer>
-              )}
-            </AdminCard>
-
+          {cloudReady && (
             <AdminCard className="detail-panel">
-              <SectionHeader title="تفاصيل التذكرة" />
-              {cloudReady && selectedCloudFeedback ? (
+              <SectionHeader title="تفاصيل الرسالة" />
+              {selectedCloudFeedback ? (
                 <>
                   <h4 style={{ margin: '0 0 8px' }}>{selectedCloudFeedback.subject}</h4>
                   <p>
@@ -398,38 +296,11 @@ export function CommunityPage() {
                     </button>
                   </div>
                 </>
-              ) : selected ? (
-                <>
-                  <h4 style={{ margin: '0 0 8px' }}>
-                    #{selected.id} — {selected.title}
-                  </h4>
-                  <p>
-                    <strong>نص الشكوى/الاقتراح:</strong>
-                    <br />
-                    {selected.body}
-                  </p>
-                  <p>
-                    <strong>بيانات الطفل (mock):</strong> {selected.childMock.name} —{' '}
-                    {selected.childMock.age}
-                  </p>
-                  <p>
-                    <strong>رد الإدارة:</strong>
-                    <br />
-                    {selected.adminReply ?? (
-                      <em style={{ color: 'var(--on-surface-variant)' }}>لم يُرد بعد</em>
-                    )}
-                  </p>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                    <MockActionButton>رد</MockActionButton>
-                    <MockActionButton variant="outline">إغلاق</MockActionButton>
-                    <MockActionButton variant="secondary">تحويل لاستشارة</MockActionButton>
-                  </div>
-                </>
               ) : (
-                <p className="text-caption">اختر تذكرة من اللوحة أو الجدول.</p>
+                <p className="text-caption">اختاري رسالة من الجدول.</p>
               )}
             </AdminCard>
-          </div>
+          )}
         </>
       )}
 
@@ -448,11 +319,11 @@ export function CommunityPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(cloudReady ? consultationRows : consultationRequests).length === 0 ? (
+                  {consultationRows.length === 0 ? (
                     <tr>
                       <td colSpan={4}>لا طلبات بعد</td>
                     </tr>
-                  ) : cloudReady ? (
+                  ) : (
                     consultationRows.map((c) => (
                       <tr
                         key={c.id}
@@ -478,17 +349,6 @@ export function CommunityPage() {
                           </StatusBadge>
                         </td>
                         <td>{c.created_at?.slice?.(0, 10) ?? '—'}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    consultationRequests.map((c) => (
-                      <tr key={c.id}>
-                        <td style={{ fontWeight: 600 }}>{c.topic}</td>
-                        <td style={{ fontSize: '0.88rem' }}>{c.details ?? c.topic}</td>
-                        <td>
-                          <StatusBadge tone="muted">{c.status}</StatusBadge>
-                        </td>
-                        <td>{c.date}</td>
                       </tr>
                     ))
                   )}
@@ -572,8 +432,7 @@ export function CommunityPage() {
                 </tr>
               </thead>
               <tbody>
-                {cloudReady
-                  ? clubRows.map((p) => (
+                {clubRows.map((p) => (
                       <tr key={p.id}>
                         <td style={{ fontWeight: 600 }}>{p.title}</td>
                         <td>{p.author_display_name ?? '—'}</td>
@@ -597,16 +456,6 @@ export function CommunityPage() {
                             </button>
                           )}
                         </td>
-                      </tr>
-                    ))
-                  : mothersClubPosts.map((p) => (
-                      <tr key={p.id}>
-                        <td style={{ fontWeight: 600 }}>{p.title}</td>
-                        <td>{p.author}</td>
-                        <td>
-                          <StatusBadge tone={postTone[p.status]}>{p.status}</StatusBadge>
-                        </td>
-                        <td />
                       </tr>
                     ))}
               </tbody>
@@ -650,7 +499,7 @@ export function CommunityPage() {
                 </tr>
               </thead>
               <tbody>
-                {(cloudReady ? faqItems : communityFaqItems).map((f, i) => (
+                {faqItems.map((f, i) => (
                   <tr key={f.id ?? i}>
                     <td style={{ fontWeight: 600, maxWidth: 220 }}>{f.question}</td>
                     <td style={{ fontSize: '0.88rem' }}>{f.answer}</td>
@@ -673,38 +522,6 @@ export function CommunityPage() {
         </AdminCard>
       )}
 
-      {tab === 'childProblems' && (
-        <AdminCard>
-          <SectionHeader title="مشاكل الأطفال الشائعة + حل المشاكل" />
-          <AdminTableContainer>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>الفئة</th>
-                  <th>العنوان</th>
-                  <th>المحتوى</th>
-                </tr>
-              </thead>
-              <tbody>
-                {supportTopics.map((s, i) => (
-                  <tr key={`s-${i}`}>
-                    <td>{s.category}</td>
-                    <td>{s.title}</td>
-                    <td style={{ fontSize: '0.85rem' }}>{s.body}</td>
-                  </tr>
-                ))}
-                {commonChildProblems.map((p, i) => (
-                  <tr key={`p-${i}`}>
-                    <td>مشاكل شائعة</td>
-                    <td>{p.title}</td>
-                    <td style={{ fontSize: '0.85rem' }}>{p.body}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </AdminTableContainer>
-        </AdminCard>
-      )}
     </div>
   );
 }

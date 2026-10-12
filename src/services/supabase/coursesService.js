@@ -42,6 +42,46 @@ function safeFileName(name) {
   return name.replace(/[^a-zA-Z0-9._-]+/g, '_');
 }
 
+function normalizeFacebookUrl(raw) {
+  const withProto = raw.includes('://') ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withProto);
+    const host = url.hostname.replace(/^www\./, '').toLowerCase();
+    const ok =
+      host === 'facebook.com' ||
+      host === 'm.facebook.com' ||
+      host === 'fb.com' ||
+      host === 'fb.me' ||
+      host.endsWith('.facebook.com');
+    return ok ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+const COURSE_VIDEO_MIME = {
+  mp4: 'video/mp4',
+  m4v: 'video/x-m4v',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+};
+
+/** نوع الملف اللي الـ bucket بيقبله — ويندوز ساعات بيبعت type فاضي أو غلط فيفشل الرفع بـ Failed to fetch. */
+export function courseVideoContentType(file) {
+  const allowed = new Set(Object.values(COURSE_VIDEO_MIME));
+  if (file.type && allowed.has(file.type)) return file.type;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (COURSE_VIDEO_MIME[ext]) return COURSE_VIDEO_MIME[ext];
+  if (!file.type || file.type === 'application/octet-stream') return 'video/mp4';
+  return null;
+}
+
+export function isAllowedCourseVideoFile(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (COURSE_VIDEO_MIME[ext]) return true;
+  return Boolean(file.type && (file.type.startsWith('video/') || file.type === 'application/octet-stream'));
+}
+
 // ---------------------------------------------------------------------------
 // Courses
 // ---------------------------------------------------------------------------
@@ -156,6 +196,8 @@ export async function deleteCourse(courseId) {
     .from(LESSONS_TABLE)
     .select('video_path')
     .eq('course_id', courseId);
+  // Live rows keep access_type = course; ON DELETE SET NULL would violate live_sessions_course_check.
+  await supabase.from('live_sessions').delete().eq('course_id', courseId);
   const { error } = await supabase.from(COURSES_TABLE).delete().eq('id', courseId);
   const paths = (lessons ?? []).map((l) => l.video_path).filter(Boolean);
   if (!error && paths.length) {
@@ -273,13 +315,22 @@ export async function deleteLesson(lesson) {
 
 export async function uploadCourseVideo(courseId, file) {
   if (offline()) return { data: null, error: OFFLINE_ERROR };
+  const contentType = courseVideoContentType(file);
+  if (!contentType) {
+    return { data: null, error: new Error('نوع الملف غير مسموح — MP4 أو WEBM أو MOV.') };
+  }
   const path = `${courseId}/${Date.now()}_${safeFileName(file.name)}`;
-  const { error } = await supabase.storage.from(VIDEO_BUCKET).upload(path, file, {
-    upsert: false,
-    contentType: file.type || 'video/mp4',
-  });
-  if (error) return { data: null, error };
-  return { data: { path, size: file.size }, error: null };
+  try {
+    const { error } = await supabase.storage.from(VIDEO_BUCKET).upload(path, file, {
+      upsert: false,
+      contentType,
+      cacheControl: '3600',
+    });
+    if (error) return { data: null, error };
+    return { data: { path, size: file.size }, error: null };
+  } catch (error) {
+    return { data: null, error: error instanceof Error ? error : new Error(String(error)) };
+  }
 }
 
 export async function removeCourseVideo(path) {
@@ -458,8 +509,114 @@ export async function revokeCourse(courseId, userId) {
   return { error };
 }
 
+// ---------------------------------------------------------------------------
+// صفحة الدورات في التطبيق (فيديو التعريف + عنوان الصفحة)
+// ---------------------------------------------------------------------------
+
+const HUB_KEYS = {
+  introSource: 'courses_intro_source',
+  introYoutube: 'courses_intro_youtube',
+  introVideoUrl: 'courses_intro_video_url',
+  introCover: 'courses_intro_cover',
+  title: 'courses_hub_title',
+  subtitle: 'courses_hub_subtitle',
+  description: 'courses_hub_description',
+  category: 'courses_hub_category',
+  instructorName: 'courses_hub_instructor_name',
+  instructorTitle: 'courses_hub_instructor_title',
+  instructorAvatar: 'courses_hub_instructor_avatar',
+  facebook: 'courses_hub_facebook',
+};
+
+export function emptyCoursesHub() {
+  return {
+    sourceType: 'youtube',
+    introYoutube: '',
+    introVideoUrl: '',
+    introCover: '',
+    title: '',
+    subtitle: '',
+    description: '',
+    category: '',
+    instructorName: '',
+    instructorTitle: '',
+    instructorAvatar: '',
+    facebookUrl: '',
+  };
+}
+
+export async function loadCoursesHub() {
+  if (offline()) return { data: emptyCoursesHub(), error: null };
+  const { data, error } = await supabase.from('app_settings').select('key, value').in('key', Object.values(HUB_KEYS));
+  if (error) return { data: emptyCoursesHub(), error };
+  const byKey = Object.fromEntries((data ?? []).map((r) => [r.key, r.value ?? '']));
+  const introVideoUrl = byKey[HUB_KEYS.introVideoUrl] ?? '';
+  const introYoutube = byKey[HUB_KEYS.introYoutube] ?? '';
+  const savedSource = byKey[HUB_KEYS.introSource] ?? '';
+  const sourceType =
+    savedSource === 'upload' || savedSource === 'youtube'
+      ? savedSource
+      : introVideoUrl && !introYoutube
+        ? 'upload'
+        : 'youtube';
+  return {
+    data: {
+      sourceType,
+      introYoutube,
+      introVideoUrl,
+      introCover: byKey[HUB_KEYS.introCover] ?? '',
+      title: byKey[HUB_KEYS.title] ?? '',
+      subtitle: byKey[HUB_KEYS.subtitle] ?? '',
+      description: byKey[HUB_KEYS.description] ?? '',
+      category: byKey[HUB_KEYS.category] ?? '',
+      instructorName: byKey[HUB_KEYS.instructorName] ?? '',
+      instructorTitle: byKey[HUB_KEYS.instructorTitle] ?? '',
+      instructorAvatar: byKey[HUB_KEYS.instructorAvatar] ?? '',
+      facebookUrl: byKey[HUB_KEYS.facebook] ?? '',
+    },
+    error: null,
+  };
+}
+
+export async function saveCoursesHub(hub) {
+  if (offline()) return { error: OFFLINE_ERROR };
+  const sourceType = hub.sourceType === 'upload' ? 'upload' : 'youtube';
+  const youtube = (hub.introYoutube ?? '').trim();
+  const videoId = youtube ? parseYoutubeVideoId(youtube) : '';
+  if (sourceType === 'youtube' && youtube && !videoId) {
+    return { error: new Error('رابط فيديو التعريف لازم يكون YouTube.') };
+  }
+  const facebookRaw = (hub.facebookUrl ?? '').trim();
+  const facebookUrl = facebookRaw ? normalizeFacebookUrl(facebookRaw) : '';
+  if (facebookRaw && !facebookUrl) {
+    return { error: new Error('رابط المتابعة لازم يكون صفحة فيسبوك.') };
+  }
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('app_settings').upsert(
+    [
+      { key: HUB_KEYS.introSource, value: sourceType, updated_at: now },
+      { key: HUB_KEYS.introYoutube, value: sourceType === 'youtube' ? videoId || youtube : videoId, updated_at: now },
+      { key: HUB_KEYS.introVideoUrl, value: (hub.introVideoUrl ?? '').trim(), updated_at: now },
+      { key: HUB_KEYS.introCover, value: hub.introCover.trim(), updated_at: now },
+      { key: HUB_KEYS.title, value: hub.title.trim(), updated_at: now },
+      { key: HUB_KEYS.subtitle, value: hub.subtitle.trim(), updated_at: now },
+      { key: HUB_KEYS.description, value: hub.description.trim(), updated_at: now },
+      { key: HUB_KEYS.category, value: hub.category.trim(), updated_at: now },
+      { key: HUB_KEYS.instructorName, value: hub.instructorName.trim(), updated_at: now },
+      { key: HUB_KEYS.instructorTitle, value: hub.instructorTitle.trim(), updated_at: now },
+      { key: HUB_KEYS.instructorAvatar, value: hub.instructorAvatar.trim(), updated_at: now },
+      { key: HUB_KEYS.facebook, value: facebookUrl, updated_at: now },
+    ],
+    { onConflict: 'key' },
+  );
+  return { error };
+}
+
 export function translateCoursesError(message) {
   const m = message?.toLowerCase() ?? '';
+  if (m.includes('live_sessions_course_check')) {
+    return 'مفيش ينفع نمسح الدورة وليها لايف مربوط. امسحي اللايف الأول، أو حدّثي الصفحة وجرّبي تاني.';
+  }
   if (m.includes('not_found_user')) return 'مفيش حساب بالإيميل ده في التطبيق.';
   if (m.includes('admin_grant_course') || m.includes('admin_course_enrollments')) {
     return 'دوال الدورات غير موجودة — شغّلي migration 20260526100022_courses.sql في Supabase SQL Editor.';
@@ -489,5 +646,15 @@ export function translateCoursesError(message) {
     return 'لا صلاحية — سجّلي الدخول وتأكدي أن دورك admin أو editor.';
   }
   if (m.includes('jwt') || m.includes('not authenticated')) return 'انتهت الجلسة — سجّلي الدخول ثم أعيدي المحاولة.';
+  if (
+    m.includes('failed to fetch') ||
+    m.includes('networkerror') ||
+    m.includes('network request failed') ||
+    m.includes('load failed') ||
+    m.includes('err_network') ||
+    m.includes('err_connection')
+  ) {
+    return 'الاتصال اتقطع أثناء الرفع. جرّبي تاني، أو اضغطي الفيديو لأقل من 50 ميجا (MP4)، أو حطي رابط YouTube.';
+  }
   return message;
 }

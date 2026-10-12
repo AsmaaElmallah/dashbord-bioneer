@@ -1,21 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
+import { EmptyState } from '../components/EmptyState';
 import { InfoBanner } from '../components/InfoBanner';
-import { MockActionButton } from '../components/MockActionButton';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatCard } from '../components/StatCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
 import { isSupabaseEnabled } from '../lib/supabaseClient';
-import {
-  notificationCampaigns as mockCampaigns,
-  notificationOverview,
-  notificationTemplates,
-  notificationTypes,
-} from '../data/mockData';
 import {
   countDeviceTokens,
   createAndSendCampaign,
@@ -31,62 +24,50 @@ const statusTone = {
 const defaultComposer = {
   title: '',
   body: '',
-  type: 'تذكير',
-  audience: 'كل المستخدمين',
-  deepLink: 'bayanour://home',
-  sendAt: '',
 };
 
 export function NotificationsPage() {
-  const { showMock } = useSnackbar();
+  const { showError, showSuccess } = useSnackbar();
   const [composer, setComposer] = useState(defaultComposer);
-  const [campaigns, setCampaigns] = useState(mockCampaigns);
+  const [campaigns, setCampaigns] = useState([]);
   const [tokenCount, setTokenCount] = useState(0);
   const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    if (!isSupabaseEnabled) return;
+    if (!isSupabaseEnabled) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     const [c, t] = await Promise.all([
       fetchNotificationCampaigns(),
       countDeviceTokens(),
     ]);
-    if (c.data) {
-      setCampaigns(
-        c.data.map((row) => ({
-          id: row.id,
-          title: row.title,
-          audience: row.audience,
-          status: row.status,
-          date: row.sentAt,
-          openRate: '—',
-        })),
-      );
-    }
-    setTokenCount(t.count);
+    setCampaigns(
+      (c.data ?? []).map((row) => ({
+        id: row.id,
+        title: row.title,
+        audience: row.audience,
+        status: row.status,
+        date: row.sentAt,
+      })),
+    );
+    setTokenCount(t.count ?? 0);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const applyTemplate = (tpl) => {
-    setComposer({
-      title: tpl.title,
-      body: tpl.body,
-      type: tpl.type,
-      audience: tpl.audience,
-      deepLink: tpl.deepLink,
-      sendAt: tpl.sendAt,
-    });
-  };
-
   const sendNow = async () => {
     if (!composer.title.trim() || !composer.body.trim()) {
-      showMock('أدخلي العنوان والنص');
+      showError('أدخلي العنوان والنص');
       return;
     }
     if (!isSupabaseEnabled) {
-      showMock();
+      showError('Supabase غير مفعّل');
       return;
     }
     setSending(true);
@@ -96,12 +77,12 @@ export function NotificationsPage() {
     });
     setSending(false);
     if (error) {
-      showMock('تعذّر الإرسال');
+      showError('تعذّر الإرسال');
       return;
     }
-    showMock(
+    showSuccess(
       fallback
-        ? 'أُرسلت للحملة (in-app) — انشري Edge Function send-campaign لـ FCM'
+        ? 'اتحفظت الحملة جوه التطبيق — بوش الموبايل يحتاج Edge Function'
         : 'تم إرسال الحملة',
     );
     setComposer(defaultComposer);
@@ -112,34 +93,17 @@ export function NotificationsPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        title="الإشعارات"
-        extraBadges={isSupabaseEnabled ? ['Supabase'] : ['mock data']}
-      />
-
-      <AdminCard>
-        <p style={{ margin: 0, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          <Link to="/content-studio/notification" className="mock-btn mock-btn--primary">
-            محرر الإشعارات (Content Studio)
-          </Link>
-        </p>
-      </AdminCard>
+      <PageHeader title="الإشعارات" />
 
       <InfoBanner tone="info">
         {isSupabaseEnabled
-          ? `أجهزة مسجّلة: ${tokenCount}. الإرسال عبر Edge Function send-campaign (FCM إن وُجد FCM_SERVER_KEY، وإلا in-app).`
-          : 'التطبيق يعرض الحملات المرسلة من Supabase — فعّلي السحابة للإرسال.'}
+          ? `أجهزة مسجّلة: ${tokenCount}. الإشعار يظهر جوه التطبيق. بوش الموبايل يحتاج Edge Function send-campaign.`
+          : 'فعّلي السحابة لإرسال الإشعارات.'}
       </InfoBanner>
 
-      <div className="grid-4">
+      <div className="grid-2">
         <StatCard label="أجهزة مسجّلة" value={String(tokenCount)} />
-        <StatCard label="إشعارات مرسلة" value={String(sentCount)} />
-        <StatCard label="معدل فتح" value={notificationOverview.openRate} sub="متوسط mock" />
-        <StatCard
-          label="تذكيرات الدروس"
-          value={String(notificationOverview.lessonReminders)}
-          sub="قرآن + مناهج"
-        />
+        <StatCard label="حملات مرسلة" value={String(sentCount)} />
       </div>
 
       <div className="grid-2">
@@ -163,65 +127,27 @@ export function NotificationsPage() {
               placeholder="نص يظهر في الإشعار"
             />
           </label>
-          <label className="cms-field">
-            النوع
-            <select
-              value={composer.type}
-              onChange={(e) => setComposer((c) => ({ ...c, type: e.target.value }))}
-            >
-              {notificationTypes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="cms-field">
-            الجمهور المستهدف
-            <input
-              type="text"
-              value={composer.audience}
-              onChange={(e) => setComposer((c) => ({ ...c, audience: e.target.value }))}
-            />
-          </label>
-          <label className="cms-field">
-            مكان الظهور / deep link
-            <input
-              type="text"
-              value={composer.deepLink}
-              onChange={(e) => setComposer((c) => ({ ...c, deepLink: e.target.value }))}
-            />
-          </label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <MockActionButton
+            <button
+              type="button"
+              className="mock-btn mock-btn--primary"
               onClick={sendNow}
               disabled={sending}
             >
               {sending ? 'جاري الإرسال…' : 'إرسال الآن'}
-            </MockActionButton>
-            <MockActionButton variant="outline" onClick={() => setComposer(defaultComposer)}>
+            </button>
+            <button
+              type="button"
+              className="mock-btn mock-btn--outline"
+              onClick={() => setComposer(defaultComposer)}
+            >
               مسح
-            </MockActionButton>
-          </div>
-
-          <SectionHeader title="قوالب جاهزة" />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {notificationTemplates.map((tpl) => (
-              <button
-                key={tpl.id}
-                type="button"
-                className="mock-btn mock-btn--outline"
-                style={{ fontSize: '0.8rem' }}
-                onClick={() => applyTemplate(tpl)}
-              >
-                {tpl.label}
-              </button>
-            ))}
+            </button>
           </div>
         </AdminCard>
 
         <AdminCard>
-          <SectionHeader title="معاينة — جوال" />
+          <SectionHeader title="معاينة" />
           <div className="mobile-notif-preview">
             <div className="mobile-notif-preview__bar">
               <span>بيانور</span>
@@ -233,39 +159,40 @@ export function NotificationsPage() {
             <p className="mobile-notif-preview__body">
               {composer.body || 'نص الرسالة يظهر هنا...'}
             </p>
-            <span className="text-caption">{composer.deepLink}</span>
           </div>
         </AdminCard>
       </div>
 
       <AdminCard>
         <SectionHeader title="جدول الحملات" />
-        <AdminTableContainer>
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>العنوان</th>
-                <th>الجمهور</th>
-                <th>الحالة</th>
-                <th>التاريخ</th>
-                <th>open rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {campaigns.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.title}</td>
-                  <td style={{ fontSize: '0.85rem' }}>{c.audience}</td>
-                  <td>
-                    <StatusBadge tone={statusTone[c.status] ?? 'muted'}>{c.status}</StatusBadge>
-                  </td>
-                  <td>{c.date}</td>
-                  <td>{c.openRate}</td>
+        {!loading && campaigns.length === 0 ? (
+          <EmptyState compact title="لا حملات بعد" description="أرسلي إشعار من النموذج أعلاه." />
+        ) : (
+          <AdminTableContainer>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>العنوان</th>
+                  <th>الجمهور</th>
+                  <th>الحالة</th>
+                  <th>التاريخ</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </AdminTableContainer>
+              </thead>
+              <tbody>
+                {campaigns.map((c) => (
+                  <tr key={c.id}>
+                    <td>{c.title}</td>
+                    <td style={{ fontSize: '0.85rem' }}>{c.audience || '—'}</td>
+                    <td>
+                      <StatusBadge tone={statusTone[c.status] ?? 'muted'}>{c.status}</StatusBadge>
+                    </td>
+                    <td>{c.date || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </AdminTableContainer>
+        )}
       </AdminCard>
     </div>
   );
