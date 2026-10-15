@@ -97,7 +97,7 @@ export function NotificationsPage() {
 
       <InfoBanner tone="info">
         {isSupabaseEnabled
-          ? `أجهزة مسجّلة: ${tokenCount}. الإشعار يظهر جوه التطبيق. بوش الموبايل يحتاج Edge Function send-campaign.`
+          ? `أجهزة مسجّلة: ${tokenCount}. الإشعار بيظهر جوه التطبيق، وبيوصل على الموبايل كمان لو Firebase متفعّل.`
           : 'فعّلي السحابة لإرسال الإشعارات.'}
       </InfoBanner>
 

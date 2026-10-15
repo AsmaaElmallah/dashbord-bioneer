@@ -9,7 +9,7 @@ import {
   savePaymentSettings,
 } from '../services/supabase/paymentSettingsService';
 
-/** طرق الدفع اللي تظهر للأم في التطبيق (الاشتراكات والدورات). */
+/** الدفع في التطبيق بـ PayPal (أو الكارت البنكي عن طريق PayPal) بس. */
 export function PaymentSettingsCard() {
   const { showError, showSuccess } = useSnackbar();
   const [settings, setSettings] = useState(emptyPaymentSettings);
@@ -29,13 +29,7 @@ export function PaymentSettingsCard() {
     };
   }, [showError]);
 
-  const patch = (p) => setSettings((s) => ({ ...s, ...p }));
-
   const onSave = async () => {
-    if (settings.manualEnabled && !settings.whatsapp.replace(/\D/g, '')) {
-      showError('اكتبي رقم واتساب علشان الأم تبعت عليه الإيصال.');
-      return;
-    }
     setSaving(true);
     const { error } = await savePaymentSettings(settings);
     setSaving(false);
@@ -45,7 +39,7 @@ export function PaymentSettingsCard() {
 
   return (
     <AdminCard>
-      <SectionHeader title="طرق الدفع في التطبيق" />
+      <SectionHeader title="الدفع في التطبيق" />
       {loading ? (
         <MockLoading label="جاري التحميل…" />
       ) : (
@@ -53,45 +47,18 @@ export function PaymentSettingsCard() {
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
             <input
               type="checkbox"
-              checked={settings.manualEnabled}
-              onChange={(e) => patch({ manualEnabled: e.target.checked })}
-            />
-            التحويل اليدوي (الأم تحوّل وتبعت الإيصال على واتساب، وإنتي تفتحي لها بالإيميل)
-          </label>
-          <label className="cms-field">
-            رقم واتساب لاستقبال الإيصالات (بالكود الدولي، مثال: 967777123456)
-            <input
-              type="tel"
-              dir="ltr"
-              placeholder="967777123456"
-              value={settings.whatsapp}
-              onChange={(e) => patch({ whatsapp: e.target.value })}
-            />
-          </label>
-          <label className="cms-field">
-            بيانات التحويل اللي تظهر للأم (اسم البنك أو المحفظة، رقم الحساب، اسم المستلم…)
-            <textarea
-              rows={4}
-              placeholder={'مثال:\nبنك الكريمي — رقم الحساب: 123456\nاسم المستلم: فلانة'}
-              value={settings.manualInstructions}
-              onChange={(e) => patch({ manualInstructions: e.target.value })}
-            />
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
-            <input
-              type="checkbox"
               checked={settings.paypalEnabled}
-              onChange={(e) => patch({ paypalEnabled: e.target.checked })}
+              onChange={(e) => setSettings({ paypalEnabled: e.target.checked })}
             />
-            PayPal أو بطاقة بنكية (يتفعّل تلقائي بعد الدفع)
+            تفعيل الدفع بـ PayPal أو الكارت البنكي (الاشتراك بيتفعّل تلقائي بعد الدفع)
           </label>
           <p className="text-caption" style={{ margin: 0 }}>
-            PayPal بيظهر للباقات والدورات والكتب المدفوعة اللي ليها سعر بالدولار. ولو التطبيق نزل على Google Play، اقفلي
-            PayPal والتحويل اليدوي علشان Google ممكن ترفض التطبيق.
+            لو قفلتيه، الأم مش هتقدر تدفع لحد ما تفتحيه تاني. كل الأسعار بالدولار. ولو التطبيق نزل على Google Play، Google
+            ممكن ترفضه لأن الدفع جوه التطبيق مش عن طريقها.
           </p>
           <div>
             <button type="button" className="mock-btn mock-btn--primary" disabled={saving} onClick={onSave}>
-              {saving ? 'جاري الحفظ…' : 'حفظ إعدادات الدفع'}
+              {saving ? 'جاري الحفظ…' : 'حفظ'}
             </button>
           </div>
         </div>

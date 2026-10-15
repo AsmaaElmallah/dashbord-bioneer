@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { EmptyState } from '../components/EmptyState';
-import { MockActionButton } from '../components/MockActionButton';
 import { MockLoading } from '../components/MockLoading';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
@@ -11,51 +10,95 @@ import { useSnackbar } from '../context/SnackbarContext';
 import { isSupabaseEnabled } from '../lib/supabaseClient';
 import { GrantSubscriptionCard } from '../components/GrantSubscriptionCard';
 import { PaymentSettingsCard } from '../components/PaymentSettingsCard';
+import { PaymentsLogCard } from '../components/PaymentsLogCard';
 import {
   extendSubscription,
   fetchSubscriptionPlans,
   fetchUserSubscriptions,
+  savePlan,
   setPlanActive,
-  setPlanPriceUsd,
 } from '../services/supabase/subscriptionsService';
 
-function PlanUsdPrice({ plan, onSaved }) {
+/** الأدمن بتعدّل الاسم والسعر بالدولار والمميزات. المدة ثابتة لأنها هي أيام الدروس اللي بتتفتح. */
+function PlanEditor({ plan, onSaved }) {
   const { showError, showSuccess } = useSnackbar();
-  const [value, setValue] = useState(String(plan.priceUsd ?? ''));
+  const initial = useMemo(
+    () => ({
+      title: plan.title ?? '',
+      priceUsd: String(plan.priceUsd ?? ''),
+      features: (plan.features ?? []).join('\n'),
+    }),
+    [plan],
+  );
+  const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
-  const dirty = value.trim() !== String(plan.priceUsd ?? '');
+  useEffect(() => setForm(initial), [initial]);
+
+  const dirty =
+    form.title !== initial.title || form.priceUsd.trim() !== initial.priceUsd || form.features !== initial.features;
+  const price = Number(form.priceUsd);
+  const tooLow = form.priceUsd.trim() !== '' && price > 0 && price < 1;
 
   const onSave = async () => {
     setSaving(true);
-    const { error } = await setPlanPriceUsd(plan.id, value);
+    const { error } = await savePlan({
+      id: plan.id,
+      title: form.title,
+      priceUsd: form.priceUsd,
+      durationDays: plan.durationDays,
+      features: form.features.split('\n'),
+    });
     setSaving(false);
     if (error) {
-      showError(error.message?.includes('price_usd')
-        ? 'شغّلي migration 20260526100024_payments.sql في Supabase الأول'
-        : error.message ?? 'تعذّر حفظ السعر');
+      showError(error.message ?? 'تعذّر حفظ الباقة');
       return;
     }
-    showSuccess('تم حفظ السعر بالدولار');
+    showSuccess('تم حفظ الباقة');
     onSaved?.();
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-      <span className="text-caption">سعر PayPal بالدولار:</span>
-      <input
-        type="number"
-        min="0"
-        step="0.01"
-        dir="ltr"
-        placeholder="5"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        style={{ width: 90 }}
-      />
+    <div className="page-stack" style={{ gap: 8, marginTop: 12 }}>
+      <label className="cms-field">
+        اسم الباقة
+        <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+      </label>
+      <label className="cms-field">
+        السعر بالدولار (ده اللي بيظهر للأم وبيتدفع في PayPal)
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          dir="ltr"
+          placeholder="9.99"
+          value={form.priceUsd}
+          onChange={(e) => setForm((f) => ({ ...f, priceUsd: e.target.value }))}
+        />
+      </label>
+      {tooLow && (
+        <p style={{ margin: 0, color: 'var(--error, #b3261e)', fontWeight: 700 }}>
+          ⚠️ السعر أقل من دولار — ده سعر تجريبي. غيّريه قبل ما التطبيق ينزل للناس.
+        </p>
+      )}
+      {form.priceUsd.trim() === '' && (
+        <p className="text-caption" style={{ margin: 0 }}>
+          من غير سعر الباقة هتظهر «السعر هيتحدد قريب» ومحدش هيقدر يشتريها.
+        </p>
+      )}
+      <label className="cms-field">
+        المميزات (كل ميزة في سطر)
+        <textarea
+          rows={4}
+          value={form.features}
+          onChange={(e) => setForm((f) => ({ ...f, features: e.target.value }))}
+        />
+      </label>
       {dirty && (
-        <button type="button" className="mock-btn mock-btn--primary" disabled={saving} onClick={onSave}>
-          {saving ? '…' : 'حفظ'}
-        </button>
+        <div>
+          <button type="button" className="mock-btn mock-btn--primary" disabled={saving} onClick={onSave}>
+            {saving ? 'جاري الحفظ…' : 'حفظ الباقة'}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -74,6 +117,7 @@ export function SubscriptionsPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [expiringOnly, setExpiringOnly] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [busyId, setBusyId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [remotePlans, setRemotePlans] = useState([]);
   const [remoteSubs, setRemoteSubs] = useState([]);
@@ -165,6 +209,10 @@ export function SubscriptionsPage() {
               <h3 style={{ margin: 0 }}>{p.title}</h3>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {p.badge && <StatusBadge tone="warning">{p.badge}</StatusBadge>}
+                {p.savingsPercent != null && <StatusBadge tone="info">وفّري {p.savingsPercent}%</StatusBadge>}
+                {Number(p.priceUsd) > 0 && Number(p.priceUsd) < 1 && (
+                  <StatusBadge tone="error">سعر تجريبي</StatusBadge>
+                )}
                 <StatusBadge tone={p.active !== false ? 'success' : 'muted'}>
                   {p.status}
                 </StatusBadge>
@@ -173,36 +221,34 @@ export function SubscriptionsPage() {
             <p style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)', margin: '8px 0' }}>
               {p.price} <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>{p.priceSuffix}</span>
             </p>
-            <p className="text-caption">المدة: {p.duration}</p>
+            <p className="text-caption">
+              المدة: {p.duration} — بتفتح {p.durationDays} يوم من الدروس الأربعة (ثابتة)
+            </p>
             <p style={{ margin: '8px 0' }}>
               مشتركون نشطون: <strong>{counts[p.id] ?? p.subscribers ?? 0}</strong>
             </p>
-            {(p.storeIos || p.storeAndroid) && (
-              <p className="text-caption">
-                Store: {p.storeIos || '—'} / {p.storeAndroid || '—'}
-              </p>
-            )}
-            <ul style={{ margin: '12px 0 0', paddingRight: 20, fontSize: '0.85rem', lineHeight: 1.55 }}>
-              {(p.features ?? []).slice(0, 3).map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-              {(p.features?.length ?? 0) > 3 && (
-                <li className="text-caption">+ {p.features.length - 3} مميزات أخرى…</li>
-              )}
-            </ul>
-            {isSupabaseEnabled && remotePlans && <PlanUsdPrice plan={p} onSaved={reload} />}
+            {isSupabaseEnabled && <PlanEditor plan={p} onSaved={reload} />}
             {isSupabaseEnabled && (
               <div style={{ marginTop: 12 }}>
-                <MockActionButton
-                  variant="outline"
+                <button
+                  type="button"
+                  className="mock-btn mock-btn--outline"
+                  disabled={busyId === p.id}
                   onClick={async () => {
-                    const { error } = await setPlanActive(p.id, p.active === false);
+                    const activating = p.active === false;
+                    if (!activating && !window.confirm(`إيقاف «${p.title}»؟ الأمهات مش هيقدروا يشتركوا فيها لحد ما تفعّليها تاني.`)) return;
+                    setBusyId(p.id);
+                    const { error } = await setPlanActive(p.id, activating);
+                    setBusyId(null);
                     if (error) showMock('تعذّر تحديث حالة الباقة');
-                    else await reload();
+                    else {
+                      showMock(activating ? 'تم تفعيل الباقة' : 'تم إيقاف الباقة');
+                      await reload();
+                    }
                   }}
                 >
-                  {p.active === false ? 'تفعيل الباقة' : 'إيقاف الباقة'}
-                </MockActionButton>
+                  {busyId === p.id ? 'جاري…' : p.active === false ? 'تفعيل الباقة' : 'إيقاف الباقة'}
+                </button>
               </div>
             )}
           </AdminCard>
@@ -242,9 +288,9 @@ export function SubscriptionsPage() {
             قريب الانتهاء (30 يوم)
           </label>
           {isSupabaseEnabled && (
-            <MockActionButton variant="outline" onClick={reload}>
+            <button type="button" className="mock-btn mock-btn--outline" onClick={reload}>
               تحديث
-            </MockActionButton>
+            </button>
           )}
         </div>
 
@@ -260,6 +306,7 @@ export function SubscriptionsPage() {
                   <th>البداية</th>
                   <th>الانتهاء</th>
                   <th>الحالة</th>
+                  <th>أيام الدروس المفتوحة</th>
                   <th>مصدر الدفع</th>
                   <th>إجراء</th>
                 </tr>
@@ -286,27 +333,29 @@ export function SubscriptionsPage() {
                     <td>
                       <StatusBadge tone={statusTone[s.status] || 'muted'}>{s.status}</StatusBadge>
                     </td>
+                    <td>{s.lessonDays}</td>
                     <td>{s.payment}</td>
                     <td>
-                      <MockActionButton
-                        variant="outline"
+                      <button
+                        type="button"
+                        className="mock-btn mock-btn--outline"
                         style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+                        disabled={!isSupabaseEnabled || busyId === s.id}
                         onClick={async (e) => {
                           e.stopPropagation();
-                          if (!isSupabaseEnabled) {
-                            showMock();
-                            return;
-                          }
+                          if (!window.confirm(`تمديد اشتراك ${s.parent} 30 يوم مجاناً وفتح 30 يوم دروس؟`)) return;
+                          setBusyId(s.id);
                           const { error } = await extendSubscription(s.id, 30);
+                          setBusyId(null);
                           if (error) showMock('تعذّر التمديد');
                           else {
-                            showMock('تم التمديد 30 يوماً');
+                            showMock('تم التمديد 30 يوم وفتح 30 يوم دروس');
                             await reload();
                           }
                         }}
                       >
-                        تمديد
-                      </MockActionButton>
+                        {busyId === s.id ? 'جاري…' : 'تمديد'}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -323,6 +372,8 @@ export function SubscriptionsPage() {
           </div>
         )}
       </AdminCard>
+
+      {isSupabaseEnabled && <PaymentsLogCard />}
     </div>
   );
 }

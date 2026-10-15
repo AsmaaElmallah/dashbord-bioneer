@@ -286,19 +286,27 @@ export function CoursesPage() {
           {draft.accessType === 'paid' && (
             <div className="grid-2" style={{ gap: 12 }}>
               <label className="cms-field">
-                السعر (يظهر للأم)
+                السعر بالدولار (ده اللي بيظهر للأم وبيتدفع في PayPal)
                 <input
-                  type="text"
-                  placeholder="مثال: 199 جنيه"
-                  value={draft.priceLabel}
-                  onChange={(e) => patch({ priceLabel: e.target.value })}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  dir="ltr"
+                  placeholder="10"
+                  value={draft.priceUsd}
+                  onChange={(e) => patch({ priceUsd: e.target.value })}
                 />
+                {Number(draft.priceUsd) > 0 && Number(draft.priceUsd) < 1 && (
+                  <span style={{ color: 'var(--error, #b3261e)', fontWeight: 700 }}>
+                    ⚠️ أقل من دولار — سعر تجريبي
+                  </span>
+                )}
               </label>
               <label className="cms-field">
                 السعر قبل الخصم (اختياري، يظهر مشطوب)
                 <input
                   type="text"
-                  placeholder="مثال: 350 جنيه"
+                  placeholder="مثال: $20"
                   value={draft.oldPriceLabel}
                   onChange={(e) => patch({ oldPriceLabel: e.target.value })}
                 />
@@ -310,28 +318,6 @@ export function CoursesPage() {
                   placeholder="مثال: خصم 45% لفترة محدودة 🔥"
                   value={draft.promoNote}
                   onChange={(e) => patch({ promoNote: e.target.value })}
-                />
-              </label>
-              <label className="cms-field">
-                السعر بالدولار للدفع بـ PayPal (لو فاضي: PayPal مش هيظهر)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  dir="ltr"
-                  placeholder="10"
-                  value={draft.priceUsd}
-                  onChange={(e) => patch({ priceUsd: e.target.value })}
-                />
-              </label>
-              <label className="cms-field">
-                كود المنتج في Google Play (اختياري، لو التطبيق على المتجر)
-                <input
-                  type="text"
-                  dir="ltr"
-                  placeholder="course_sleep_basics"
-                  value={draft.storeProductIdAndroid}
-                  onChange={(e) => patch({ storeProductIdAndroid: e.target.value })}
                 />
               </label>
             </div>

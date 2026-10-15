@@ -68,7 +68,7 @@ export function OverviewPage() {
       {!loading && overview && (
         <>
           <div className="grid-3">
-            <StatCard label="المستخدمون" value={String(overview.users)} />
+            <StatCard label="المستخدمون" value={String(overview.users)} sub="من غير الإدارة والمحررين" />
             <StatCard label="الأطفال" value={String(overview.children)} />
             <StatCard label="اشتراكات نشطة" value={String(overview.activeSubs)} />
             <StatCard label="الدورات" value={String(overview.courses)} />

@@ -90,9 +90,10 @@ export function AssetsPage() {
 
   const onDelete = async () => {
     if (!selected?.path || !cloud) {
-      showMock();
+      showMock('اختاري ملف الأول');
       return;
     }
+    if (!window.confirm(`حذف «${selected.name ?? selected.path}» نهائياً؟`)) return;
     const { error } = await removeAdminAsset(selected.path);
     if (error) {
       showMock(error.message ?? 'تعذّر الحذف');

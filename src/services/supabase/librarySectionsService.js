@@ -99,6 +99,29 @@ export async function listPaidBookPurchases() {
   };
 }
 
+export async function grantBookByEmail(bookId, email) {
+  if (offline()) return { error: OFFLINE_ERROR };
+  const { error } = await supabase.rpc('admin_grant_book', {
+    p_book_id: bookId,
+    p_email: email.trim(),
+  });
+  return { error };
+}
+
+export async function revokeBookPurchase(bookId, userId) {
+  if (offline()) return { error: OFFLINE_ERROR };
+  const { error } = await supabase
+    .from('library_book_purchases')
+    .delete()
+    .eq('book_id', bookId)
+    .eq('user_id', userId);
+  return { error };
+}
+
+export function purchaseSourceLabel(source) {
+  return source === 'admin' ? 'منحة من الإدارة' : 'PayPal';
+}
+
 // ---------------------------------------------------------------------------
 // Visual stimulation videos
 // ---------------------------------------------------------------------------
@@ -196,6 +219,15 @@ export async function saveWhatsappNumber(value) {
 
 export function translateSectionsError(message) {
   const m = message?.toLowerCase() ?? '';
+  if (m.includes('not_found_user')) {
+    return 'مفيش حساب بالإيميل ده في التطبيق — اتأكدي إن الأم سجّلت بنفس الإيميل.';
+  }
+  if (m.includes('not_found_book')) {
+    return 'الكتاب ده مش موجود — حدّثي الصفحة.';
+  }
+  if (m.includes('admin_grant_book') && (m.includes('could not find') || m.includes('schema cache') || m.includes('does not exist'))) {
+    return 'شغّلي migration 20260526100043_admin_grant_book.sql في Supabase SQL Editor علشان منح الكتب.';
+  }
   if (
     (m.includes('library_paid_books') || m.includes('library_visual_videos') || m.includes('app_settings') || m.includes('age_band')) &&
     (m.includes('does not exist') || m.includes('schema cache') || m.includes('could not find'))

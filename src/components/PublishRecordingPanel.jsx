@@ -35,7 +35,6 @@ export function PublishRecordingPanel({ session, courses, recorded, onClose, onP
   const [newCourse, setNewCourse] = useState({
     title: session.title,
     accessType: 'free',
-    priceLabel: '',
     priceUsd: '',
   });
   const [busy, setBusy] = useState(false);
@@ -66,6 +65,10 @@ export function PublishRecordingPanel({ session, courses, recorded, onClose, onP
     }
     if (mode === 'new' && !newCourse.title.trim()) {
       showError('اكتبي اسم الدورة الجديدة.');
+      return;
+    }
+    if (mode === 'new' && newCourse.accessType === 'paid' && !(Number(newCourse.priceUsd) > 0)) {
+      showError('الدورة المدفوعة محتاجة سعر بالدولار.');
       return;
     }
     if (mode === 'lives_only' && source !== 'youtube') {
@@ -229,16 +232,7 @@ export function PublishRecordingPanel({ session, courses, recorded, onClose, onP
           {newCourse.accessType === 'paid' && (
             <>
               <label className="cms-field">
-                السعر (يظهر للأم)
-                <input
-                  type="text"
-                  placeholder="مثال: 199 جنيه"
-                  value={newCourse.priceLabel}
-                  onChange={(e) => setNewCourse((c) => ({ ...c, priceLabel: e.target.value }))}
-                />
-              </label>
-              <label className="cms-field">
-                السعر بالدولار للدفع بـ PayPal (اختياري)
+                السعر بالدولار (بيظهر للأم وبيتدفع في PayPal)
                 <input
                   type="number"
                   min="0"

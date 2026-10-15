@@ -1,7 +1,7 @@
 import { Plus, Radio, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { AdminCard } from './AdminCard';
-import { LiveHostRoom } from './LiveHostRoom';
+import { MockLoading } from './MockLoading';
 import { SectionHeader } from './SectionHeader';
 import { StatusBadge } from './StatusBadge';
 import { useSnackbar } from '../context/SnackbarContext';
@@ -16,6 +16,8 @@ import {
   translateLiveError,
   updateLiveSchedule,
 } from '../services/supabase/liveService';
+
+const LiveHostRoom = lazy(() => import('./LiveHostRoom').then((m) => ({ default: m.LiveHostRoom })));
 
 const statusTone = { scheduled: 'info', live: 'error', ended: 'muted' };
 
@@ -65,7 +67,7 @@ export function CourseLivePanel({ course, onChanged }) {
       showError(translateLiveError(error.message) ?? 'تعذّر إنشاء اللايف');
       return;
     }
-    showSuccess('اتحفظت جلسة اللايف والميعاد هيظهر في التطبيق');
+    showSuccess('اتحفظت جلسة اللايف — هيوصل للأمهات تذكير قبلها بأسبوع و3 أيام وساعة');
     setNewAt('');
     await reload();
     onChanged?.();
@@ -226,14 +228,16 @@ export function CourseLivePanel({ course, onChanged }) {
       </AdminCard>
 
       {hostSession && (
-        <LiveHostRoom
-          session={hostSession}
-          onClose={() => {
-            setHostSession(null);
-            reload();
-          }}
-          onStatusChange={reload}
-        />
+        <Suspense fallback={<MockLoading label="جاري تجهيز غرفة اللايف…" />}>
+          <LiveHostRoom
+            session={hostSession}
+            onClose={() => {
+              setHostSession(null);
+              reload();
+            }}
+            onStatusChange={reload}
+          />
+        </Suspense>
       )}
     </>
   );

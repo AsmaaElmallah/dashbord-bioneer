@@ -11,7 +11,6 @@ import {
   MessageCircle,
   FileText,
   Clapperboard,
-  FolderOpen,
   Bell,
   BarChart3,
   GraduationCap,
@@ -35,7 +34,6 @@ export const navSections = [
   { path: '/community', label: 'المجتمع والدعم', icon: MessageCircle },
   { path: '/ai', label: 'مساعدة بيانور (AI)', icon: Sparkles },
   { path: '/notifications', label: 'الإشعارات', icon: Bell },
-  { path: '/assets', label: 'الملفات', icon: FolderOpen },
   { path: '/reports', label: 'التقارير', icon: BarChart3 },
 ];
 

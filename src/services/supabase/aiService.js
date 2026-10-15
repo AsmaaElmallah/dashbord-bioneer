@@ -6,11 +6,11 @@ const KEYS = {
   model: 'ai_model',
   dailyLimit: 'ai_daily_limit',
   globalLimit: 'ai_global_daily_limit',
-  emergencyPhone: 'ai_emergency_phone',
+  webSearch: 'ai_web_search',
 };
 
 export const aiProviders = [
-  { id: 'gemini', label: 'Google Gemini (مجاني)', models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'] },
+  { id: 'gemini', label: 'Google Gemini (مجاني)', models: ['gemini-3.8-flash'] },
   { id: 'claude', label: 'Anthropic Claude (مدفوع)', models: ['claude-haiku-4-5', 'claude-sonnet-4-5'] },
 ];
 
@@ -29,10 +29,10 @@ export const knowledgeCategories = [
 export const emptyAiSettings = {
   enabled: true,
   provider: 'gemini',
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3.8-flash',
   dailyLimit: 20,
   globalLimit: 200,
-  emergencyPhone: '',
+  webSearch: true,
 };
 
 const notReady = () => ({ data: null, error: new Error('Supabase غير مفعّل') });
@@ -42,14 +42,19 @@ export async function loadAiSettings() {
   const { data, error } = await supabase.from('app_settings').select('key, value').in('key', Object.values(KEYS));
   if (error) return { data: emptyAiSettings, error };
   const byKey = Object.fromEntries((data ?? []).map((r) => [r.key, r.value ?? '']));
+  const provider = byKey[KEYS.provider] === 'claude' ? 'claude' : 'gemini';
+  const models = aiProviders.find((p) => p.id === provider).models;
+  // A saved model Google has retired would keep failing; preselect a current one so «حفظ» fixes it.
+  const savedModel = byKey[KEYS.model] || '';
   return {
     data: {
       enabled: (byKey[KEYS.enabled] ?? 'true') !== 'false',
-      provider: byKey[KEYS.provider] === 'claude' ? 'claude' : 'gemini',
-      model: byKey[KEYS.model] || emptyAiSettings.model,
+      provider,
+      model: models.includes(savedModel) ? savedModel : models[0],
+      modelOutdated: !!savedModel && !models.includes(savedModel) ? savedModel : '',
       dailyLimit: Number(byKey[KEYS.dailyLimit]) || emptyAiSettings.dailyLimit,
       globalLimit: Number(byKey[KEYS.globalLimit]) || emptyAiSettings.globalLimit,
-      emergencyPhone: byKey[KEYS.emergencyPhone] ?? '',
+      webSearch: (byKey[KEYS.webSearch] ?? 'true') !== 'false',
     },
     error: null,
   };
@@ -65,8 +70,7 @@ export async function saveAiSettings(s) {
       { key: KEYS.model, value: s.model.trim(), updated_at: now },
       { key: KEYS.dailyLimit, value: String(Math.max(1, Number(s.dailyLimit) || 20)), updated_at: now },
       { key: KEYS.globalLimit, value: String(Math.max(1, Number(s.globalLimit) || 200)), updated_at: now },
-      { key: KEYS.emergencyPhone, value: s.emergencyPhone.replace(/[^\d+]/g, ''), updated_at: now },
-    ],
+      { key: KEYS.webSearch, value: String(!!s.webSearch), updated_at: now },    ],
     { onConflict: 'key' },
   );
   return { error };
@@ -161,11 +165,65 @@ export const timelineKinds = [
   { id: 'feeding', label: 'أكل' },
 ];
 
+export const vaccineCountries = [
+  { id: 'EG', label: 'مصر' },
+  { id: 'YE', label: 'اليمن' },
+  { id: 'SA', label: 'السعودية' },
+  { id: 'AE', label: 'الإمارات' },
+  { id: 'KW', label: 'الكويت' },
+  { id: 'QA', label: 'قطر' },
+  { id: 'BH', label: 'البحرين' },
+  { id: 'OM', label: 'عُمان' },
+  { id: 'JO', label: 'الأردن' },
+  { id: 'IQ', label: 'العراق' },
+  { id: 'SY', label: 'سوريا' },
+  { id: 'LB', label: 'لبنان' },
+  { id: 'PS', label: 'فلسطين' },
+  { id: 'LY', label: 'ليبيا' },
+  { id: 'SD', label: 'السودان' },
+  { id: 'MA', label: 'المغرب' },
+  { id: 'DZ', label: 'الجزائر' },
+  { id: 'TN', label: 'تونس' },
+];
+
+/** Publishes every vaccine of one country after the specialist checks it. */
+export async function publishCountryVaccines(country) {
+  if (!isSupabaseEnabled || !supabase) return notReady();
+  const { error } = await supabase
+    .from('baby_timeline')
+    .update({ publish_status: 'published' })
+    .eq('kind', 'vaccine')
+    .eq('country', country)
+    .eq('publish_status', 'review');
+  return { error };
+}
+
+export async function loadVaccineCountry() {
+  if (!isSupabaseEnabled || !supabase) return 'EG';
+  const { data } = await supabase.from('app_settings').select('value').eq('key', 'vaccine_country').maybeSingle();
+  return data?.value || 'EG';
+}
+
+export async function saveVaccineCountry(country) {
+  if (!isSupabaseEnabled || !supabase) return notReady();
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key: 'vaccine_country', value: country, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  return { error };
+}
+
+/** Runs the server self-test (key, model, embeddings, references). */
+export async function runAiHealth() {
+  if (!isSupabaseEnabled || !supabase) return notReady();
+  const { data, error } = await supabase.functions.invoke('ai-assistant', { body: { action: 'health' } });
+  return { data, error };
+}
+
 export async function fetchTimeline() {
   if (!isSupabaseEnabled || !supabase) return { data: [], error: null };
   const { data, error } = await supabase
     .from('baby_timeline')
-    .select('id, kind, age_days, title, body, tips, source_name, source_url, publish_status')
+    .select('id, kind, age_days, title, body, tips, source_name, source_url, publish_status, country')
     .order('age_days');
   return { data: data ?? [], error };
 }
@@ -184,6 +242,7 @@ export async function upsertTimeline(item) {
     source_name: item.source_name.trim(),
     source_url: item.source_url?.trim() || null,
     publish_status: item.publish_status,
+    country: item.kind === 'vaccine' ? item.country || 'EG' : null,
   };
   const query = item.id
     ? supabase.from('baby_timeline').update(payload).eq('id', item.id)

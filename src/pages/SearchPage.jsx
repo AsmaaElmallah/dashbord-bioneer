@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
 import { EmptyState } from '../components/EmptyState';
@@ -59,7 +59,7 @@ export function SearchPage() {
                     <th>النوع</th>
                     <th>العنوان</th>
                     <th>تفاصيل</th>
-                    <th>مسار</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -68,7 +68,11 @@ export function SearchPage() {
                       <td>{r.typeLabel}</td>
                       <td>{r.title}</td>
                       <td>{r.subtitle ?? '—'}</td>
-                      <td>{r.path}</td>
+                      <td>
+                        <Link to={r.path} className="mock-btn mock-btn--outline" style={{ textDecoration: 'none' }}>
+                          فتح
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

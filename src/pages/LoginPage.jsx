@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
 import { AdminCard } from '../components/AdminCard';
 import { useAuth, isSupabaseEnabled } from '../context/AuthContext';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 
 export function LoginPage() {
-  const navigate = useNavigate();
   const location = useLocation();
-  const { isLoggedIn, loading } = useAuth();
+  const { isLoggedIn, loading, authError, clearAuthError } = useAuth();
   const redirectTo = location.state?.from ?? '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,6 +29,7 @@ export function LoginPage() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
+    clearAuthError();
 
     if (!isSupabaseEnabled || !supabase) {
       setError('Supabase غير مفعّل — أضف .env وفعّل VITE_USE_SUPABASE=true');
@@ -45,10 +45,7 @@ export function LoginPage() {
 
       if (signInError) {
         setError(translateLoginError(signInError.message));
-        return;
       }
-
-      navigate(redirectTo, { replace: true });
     } finally {
       setSubmitting(false);
     }
@@ -60,7 +57,7 @@ export function LoginPage() {
         <div className="login-page__brand">
           <div className="admin-avatar login-page__avatar">ب</div>
           <h1 className="text-title">بيانور — لوحة التحكم</h1>
-          <p className="text-caption">سجّلي الدخول لإدارة المحتوى على Supabase</p>
+          <p className="text-caption">سجّلي الدخول بحساب الإدارة</p>
         </div>
 
         {!isSupabaseConfigured && (
@@ -101,9 +98,9 @@ export function LoginPage() {
             />
           </label>
 
-          {error ? (
+          {error || authError ? (
             <p className="login-page__error" role="alert">
-              {error}
+              {error || authError}
             </p>
           ) : null}
 
@@ -117,13 +114,11 @@ export function LoginPage() {
           </button>
         </form>
 
-        <p className="text-caption login-page__hint">
-          حساب الأدمن يُنشأ من Supabase Auth ثم <code>role = admin</code> في جدول profiles.
-        </p>
-
-        <Link to="/" className="login-page__back">
-          العودة للوحة (وضع محلي)
-        </Link>
+        {!isSupabaseEnabled && (
+          <Link to="/" className="login-page__back">
+            العودة للوحة (وضع محلي)
+          </Link>
+        )}
       </AdminCard>
     </div>
   );

@@ -10,8 +10,10 @@ import { useSnackbar } from '../context/SnackbarContext';
 import { libraryAgeBands } from '../data/libraryAgeBands';
 import { ClubPostsModeration } from '../components/ClubPostsModeration';
 import { ClubReportsPanel } from '../components/ClubReportsPanel';
+import { ClubGroupsPanel } from '../components/ClubGroupsPanel';
 import {
   ensureClubAgeCategories,
+  fetchClubGroups,
   fetchClubPosts,
   fetchCommunityFaq,
   fetchCommunityFeedback,
@@ -23,6 +25,7 @@ import {
   upsertClubPost,
   upsertCommunityFaq,
 } from '../services/supabase/communityService';
+import { sendGroupPush, sendPersonalPush } from '../services/supabase/notificationsService';
 
 const tabs = [
   ['complaints', 'الشكاوى'],
@@ -31,6 +34,21 @@ const tabs = [
   ['club', 'نادي الأمهات'],
   ['faq', 'الأسئلة الشائعة'],
 ];
+
+const emptyClubDraft = {
+  title: '',
+  body: '',
+  categoryId: libraryAgeBands[0].id,
+  groupId: '',
+  pinned: false,
+  notify: true,
+};
+
+const consultationPushText = {
+  scheduled: 'اتحدد ميعاد لاستشارتك، افتحي التطبيق لتفاصيل أكتر.',
+  done: 'تم الرد على استشارتك، افتحي التطبيق وشوفي الملاحظة.',
+  cancelled: 'اتلغى طلب الاستشارة، افتحي التطبيق لتفاصيل أكتر.',
+};
 
 const boardTone = {
   new: 'info',
@@ -47,7 +65,8 @@ export function CommunityPage() {
   const [feedbackRows, setFeedbackRows] = useState([]);
   const [consultationRows, setConsultationRows] = useState([]);
   const [clubRows, setClubRows] = useState([]);
-  const [clubDraft, setClubDraft] = useState({ title: '', body: '', categoryId: libraryAgeBands[0].id });
+  const [clubDraft, setClubDraft] = useState(emptyClubDraft);
+  const [clubGroups, setClubGroups] = useState([]);
   const [savingClub, setSavingClub] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [faqDraft, setFaqDraft] = useState({ question: '', answer: '' });
@@ -58,11 +77,12 @@ export function CommunityPage() {
   const [consultationNote, setConsultationNote] = useState('');
 
   const loadCloud = async () => {
-    const [faq, feedback, consultations, club] = await Promise.all([
+    const [faq, feedback, consultations, club, groups] = await Promise.all([
       fetchCommunityFaq(),
       fetchCommunityFeedback(),
       fetchConsultationRequests(),
       fetchClubPosts(),
+      fetchClubGroups(),
       ensureClubAgeCategories(),
     ]);
     if (faq.offline) {
@@ -74,6 +94,7 @@ export function CommunityPage() {
     if (!feedback.error) setFeedbackRows(feedback.data ?? []);
     if (!consultations.error) setConsultationRows(consultations.data ?? []);
     if (!club.error) setClubRows(club.data ?? []);
+    if (!groups.error) setClubGroups(groups.data ?? []);
   };
 
   useEffect(() => {
@@ -155,6 +176,15 @@ export function CommunityPage() {
       showMock(error.message ?? 'تعذّر التحديث');
       return;
     }
+    const pushBody = consultationPushText[status];
+    if (pushBody && selectedConsultation?.user_id) {
+      await sendPersonalPush({
+        userId: selectedConsultation.user_id,
+        title: `استشارتك: ${selectedConsultation.topic}`,
+        body: consultationNote.trim() || pushBody,
+        kind: 'consultation',
+      });
+    }
     showMock(`تم تحديث الحالة إلى ${status}`);
     await loadCloud();
   };
@@ -189,7 +219,7 @@ export function CommunityPage() {
       showMock('اكتبي العنوان والنص');
       return;
     }
-    if (!clubDraft.categoryId) {
+    if (!clubDraft.groupId && !clubDraft.categoryId) {
       showMock('اختاري عمر البيبي');
       return;
     }
@@ -200,8 +230,17 @@ export function CommunityPage() {
       showMock(error.message ?? 'تعذّر حفظ المنشور');
       return;
     }
-    setClubDraft({ title: '', body: '', categoryId: libraryAgeBands[0].id });
-    showMock('تم نشر المناقشة في نادي الأمهات');
+    if (clubDraft.groupId && clubDraft.notify) {
+      const { data } = await sendGroupPush({
+        groupId: clubDraft.groupId,
+        title: clubDraft.title.trim(),
+        body: clubDraft.body.trim(),
+      });
+      showMock(`اتنشر في الجروب واتبعت إشعار لـ ${data?.sent ?? 0} موبايل`);
+    } else {
+      showMock(clubDraft.groupId ? 'اتنشر في الجروب' : 'تم نشر المناقشة في نادي الأمهات');
+    }
+    setClubDraft(emptyClubDraft);
     await loadCloud();
   };
 
@@ -330,6 +369,7 @@ export function CommunityPage() {
               <table className="admin-table">
                 <thead>
                   <tr>
+                    <th>النوع</th>
                     <th>الموضوع</th>
                     <th>التفاصيل</th>
                     <th>الحالة</th>
@@ -339,7 +379,7 @@ export function CommunityPage() {
                 <tbody>
                   {consultationRows.length === 0 ? (
                     <tr>
-                      <td colSpan={4}>لا طلبات بعد</td>
+                      <td colSpan={5}>لا طلبات بعد</td>
                     </tr>
                   ) : (
                     consultationRows.map((c) => (
@@ -349,6 +389,11 @@ export function CommunityPage() {
                         style={{ cursor: 'pointer' }}
                         onClick={() => setSelectedConsultationId(c.id)}
                       >
+                        <td>
+                          <StatusBadge tone={c.kind === 'paid' ? 'success' : 'muted'}>
+                            {c.kind === 'paid' ? 'مدفوعة' : 'مجانية'}
+                          </StatusBadge>
+                        </td>
                         <td style={{ fontWeight: 600 }}>{c.topic}</td>
                         <td style={{ fontSize: '0.88rem' }}>{c.details}</td>
                         <td>
@@ -379,7 +424,10 @@ export function CommunityPage() {
             <SectionHeader title="سير العمل" />
             {cloudReady && selectedConsultation ? (
               <>
-                <h4 style={{ margin: '0 0 8px' }}>{selectedConsultation.topic}</h4>
+                <h4 style={{ margin: '0 0 8px' }}>
+                  {selectedConsultation.topic}
+                  {selectedConsultation.kind === 'paid' && ' — استشارة مدفوعة (مشتركة)'}
+                </h4>
                 <p style={{ fontSize: '0.9rem' }}>{selectedConsultation.details}</p>
                 <p>
                   <strong>الحالة الحالية:</strong> {selectedConsultation.status}
@@ -440,8 +488,8 @@ export function CommunityPage() {
         <AdminCard>
           <SectionHeader title="منشورات نادي الأمهات" />
           <p className="text-caption" style={{ margin: '4px 0 12px' }}>
-            أسئلة الأمهات من التطبيق بتوصل هنا «مستنية مراجعة» ومش بتظهر لحد غير لما تنشريها. تقدري كمان تكتبي مناقشة
-            باسم فريق بيانور وتنشر على طول.
+            أسئلة الأمهات في النقاشات العامة بتوصل هنا «مستنية مراجعة» ومش بتظهر لحد غير لما تنشريها. منشورات الجروبات
+            بتتنشر على طول وتقدري تخفيها أو تمسحيها من هنا. تقدري كمان تكتبي مناقشة أو إعلان باسم فريق بيانور.
           </p>
           <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
             <input
@@ -457,18 +505,52 @@ export function CommunityPage() {
               onChange={(e) => setClubDraft((d) => ({ ...d, body: e.target.value }))}
             />
             <label className="cms-field">
-              عمر البيبي
+              تتنشر فين؟
               <select
-                value={clubDraft.categoryId}
-                onChange={(e) => setClubDraft((d) => ({ ...d, categoryId: e.target.value }))}
+                value={clubDraft.groupId}
+                onChange={(e) => setClubDraft((d) => ({ ...d, groupId: e.target.value }))}
               >
-                {libraryAgeBands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.label}
+                <option value="">النقاشات العامة</option>
+                {clubGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    جروب: {g.title}
                   </option>
                 ))}
               </select>
             </label>
+            {!clubDraft.groupId && (
+              <label className="cms-field">
+                عمر البيبي
+                <select
+                  value={clubDraft.categoryId}
+                  onChange={(e) => setClubDraft((d) => ({ ...d, categoryId: e.target.value }))}
+                >
+                  {libraryAgeBands.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={clubDraft.pinned}
+                onChange={(e) => setClubDraft((d) => ({ ...d, pinned: e.target.checked }))}
+              />
+              تثبيت فوق
+            </label>
+            {clubDraft.groupId && (
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={clubDraft.notify}
+                  onChange={(e) => setClubDraft((d) => ({ ...d, notify: e.target.checked }))}
+                />
+                ابعتي إشعار على الموبايل لأعضاء الجروب
+              </label>
+            )}
             <button
               type="button"
               className="btn btn--primary"
@@ -479,7 +561,8 @@ export function CommunityPage() {
             </button>
           </div>
           <ClubReportsPanel notify={showMock} onChanged={loadCloud} />
-          <ClubPostsModeration rows={clubRows} onChanged={loadCloud} notify={showMock} />
+          <ClubPostsModeration rows={clubRows} groups={clubGroups} onChanged={loadCloud} notify={showMock} />
+          <ClubGroupsPanel notify={showMock} onChanged={loadCloud} />
         </AdminCard>
       )}
 

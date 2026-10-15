@@ -1,4 +1,15 @@
-import { BookCheck, Pencil, Plus, RefreshCw, Sparkles, ThumbsDown, Trash2 } from 'lucide-react';
+import {
+  BookCheck,
+  CheckCircle2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Stethoscope,
+  ThumbsDown,
+  Trash2,
+  XCircle,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { AdminCard } from '../components/AdminCard';
 import { AdminTableContainer } from '../components/AdminTableContainer';
@@ -20,8 +31,13 @@ import {
   indexKnowledge,
   knowledgeCategories,
   loadAiSettings,
+  loadVaccineCountry,
+  publishCountryVaccines,
+  runAiHealth,
   saveAiSettings,
+  saveVaccineCountry,
   timelineKinds,
+  vaccineCountries,
   upsertKnowledge,
   upsertTimeline,
 } from '../services/supabase/aiService';
@@ -74,11 +90,15 @@ function SettingsTab() {
     const { error } = await saveAiSettings(settings);
     setSaving(false);
     if (error) showError(error.message);
-    else showSuccess('اتحفظت إعدادات المساعدة');
+    else {
+      set({ modelOutdated: '' });
+      showSuccess('اتحفظت إعدادات المساعدة');
+    }
   };
 
   return (
     <>
+      <HealthCard />
       <AdminCard>
         <SectionHeader title="الاستخدام" />
         {usage ? (
@@ -95,10 +115,29 @@ function SettingsTab() {
 
       <AdminCard>
         <SectionHeader title="الإعدادات" />
+        {settings.modelOutdated && (
+          <p className="text-caption" style={{ color: '#a84848', fontWeight: 700 }}>
+            الموديل المحفوظ ({settings.modelOutdated}) Google وقفته — اخترنالك {settings.model}، دوسي «حفظ» تحت.
+          </p>
+        )}
         <div style={{ display: 'grid', gap: 14, maxWidth: 520 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
             <input type="checkbox" checked={settings.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
             المساعدة شغالة في التطبيق
+          </label>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontWeight: 700 }}>
+            <input
+              type="checkbox"
+              checked={settings.webSearch}
+              onChange={(e) => set({ webSearch: e.target.checked })}
+              style={{ marginTop: 4 }}
+            />
+            <span>
+              البحث في Google مع كل سؤال (إجابات أحدث ومعاها روابط مصادر)
+              <span className="text-caption" style={{ display: 'block', fontWeight: 400 }}>
+                ليه حد مجاني يومي من Google — لو خلص المساعدة بترد من غير بحث تلقائياً.
+              </span>
+            </span>
           </label>
           <label style={fieldStyle}>
             خدمة الذكاء الاصطناعي
@@ -135,15 +174,6 @@ function SettingsTab() {
             الحد العام لكل الأمهات في اليوم (عشان نفضل في الباقة المجانية)
             <input type="number" min="1" dir="ltr" value={settings.globalLimit} onChange={(e) => set({ globalLimit: e.target.value })} />
           </label>
-          <label style={fieldStyle}>
-            رقم الإسعاف اللي يظهر في التنبيه الأحمر (اتأكدي من الرقم الرسمي في بلد الأمهات)
-            <input
-              type="tel"
-              dir="ltr"
-              value={settings.emergencyPhone}
-              onChange={(e) => set({ emergencyPhone: e.target.value })}
-            />
-          </label>
           <div>
             <button type="button" className="mock-btn mock-btn--primary" disabled={saving} onClick={save}>
               {saving ? 'جاري الحفظ…' : 'حفظ'}
@@ -152,6 +182,59 @@ function SettingsTab() {
         </div>
       </AdminCard>
     </>
+  );
+}
+
+const healthLabels = {
+  settings: 'الإعدادات',
+  api_key: 'مفتاح الذكاء الاصطناعي',
+  generate: 'الموديل بيرد',
+  stream: 'الرد المباشر (السرعة)',
+  embedding: 'البحث في المراجع',
+  database: 'قاعدة البيانات والمراجع',
+};
+
+function HealthCard() {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const run = async () => {
+    setRunning(true);
+    const { data, error } = await runAiHealth();
+    setRunning(false);
+    if (error || !data?.checks) {
+      let detail = error?.message ?? 'رد غير متوقع';
+      if (error?.context?.status === 403) detail = 'الحساب ده مش أدمن';
+      if (error?.context?.status === 404) detail = 'فنكشن ai-assistant مش مرفوعة';
+      setResult({ checks: [{ name: 'function', ok: false, detail }] });
+      return;
+    }
+    setResult(data);
+  };
+
+  return (
+    <AdminCard>
+      <SectionHeader title="اختبار المساعدة" />
+      <p className="text-caption" style={{ marginTop: 0 }}>
+        بيجرب كل خطوة على السيرفر (المفتاح، الموديل، البحث، المراجع) ويقولك فين المشكلة بالظبط لو فيه.
+      </p>
+      <button type="button" className="mock-btn mock-btn--primary" disabled={running} onClick={run}>
+        <Stethoscope size={16} /> {running ? 'جاري الاختبار…' : 'اختبري المساعدة'}
+      </button>
+      {result && (
+        <ul style={{ listStyle: 'none', padding: 0, margin: '12px 0 0', display: 'grid', gap: 8 }}>
+          {result.checks.map((c) => (
+            <li key={c.name} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              {c.ok ? <CheckCircle2 size={18} color="#2e7d4f" /> : <XCircle size={18} color="#c0392b" />}
+              <div>
+                <strong>{healthLabels[c.name] ?? c.name}</strong>
+                <div className="text-caption" dir="auto" style={{ wordBreak: 'break-word' }}>{c.detail}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AdminCard>
   );
 }
 
@@ -200,7 +283,12 @@ function KnowledgeTab() {
     while (remaining > 0 && rounds < 5) {
       const { data, error } = await indexKnowledge();
       if (error || data?.status !== 'ok') {
-        showError(data?.status === 'not_configured' ? 'لازم تحطي GEMINI_API_KEY في Supabase Secrets الأول' : 'تعذّر تجهيز المراجع، جربي كمان شوية');
+        const reason = data?.detail ? ` (${data.detail})` : '';
+        showError(
+          data?.status === 'not_configured'
+            ? 'لازم تحطي GEMINI_API_KEY في Supabase Secrets الأول'
+            : `تعذّر تجهيز المراجع${reason}`,
+        );
         break;
       }
       remaining = data.remaining;
@@ -419,7 +507,10 @@ const emptyTimelineItem = {
   source_name: '',
   source_url: '',
   publish_status: 'review',
+  country: 'EG',
 };
+
+const countryLabel = (id) => vaccineCountries.find((c) => c.id === id)?.label ?? 'كل البلاد';
 
 function ageDaysLabel(days) {
   if (days === 0) return 'عند الولادة';
@@ -433,6 +524,8 @@ function TimelineTab() {
   const [rows, setRows] = useState([]);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [country, setCountry] = useState('EG');
+  const [viewCountry, setViewCountry] = useState('EG');
 
   const load = useCallback(async () => {
     const { data, error } = await fetchTimeline();
@@ -442,7 +535,29 @@ function TimelineTab() {
 
   useEffect(() => {
     load();
+    loadVaccineCountry().then((c) => {
+      setCountry(c);
+      setViewCountry(c);
+    });
   }, [load]);
+
+  const publishCountry = async () => {
+    const name = countryLabel(viewCountry);
+    if (!window.confirm(`الأخصائية راجعت تطعيمات ${name} على الكارت الرسمي؟ هتظهر للأمهات بعد النشر.`)) return;
+    const { error } = await publishCountryVaccines(viewCountry);
+    if (error) showError(error.message);
+    else await load();
+  };
+
+  const changeCountry = async (next) => {
+    const previous = country;
+    setCountry(next);
+    const { error } = await saveVaccineCountry(next);
+    if (error) {
+      setCountry(previous);
+      showError(error.message);
+    }
+  };
 
   const save = async () => {
     if (editing.title.trim().length < 3 || !editing.source_name.trim()) {
@@ -467,17 +582,46 @@ function TimelineTab() {
     else await load();
   };
 
-  const reviewCount = rows.filter((r) => r.publish_status === 'review').length;
+  const visibleRows = rows.filter((r) => r.kind !== 'vaccine' || !r.country || r.country === viewCountry);
+  const reviewCount = visibleRows.filter((r) => r.publish_status === 'review').length;
+  const countryReviewCount = visibleRows.filter((r) => r.kind === 'vaccine' && r.publish_status === 'review').length;
 
   return (
     <>
       <AdminCard>
         <p className="text-caption" style={{ marginTop: 0 }}>
-          الجدول ده بيظهر لكل أم حسب عمر طفلها بالأيام (تطعيمات، مهارات، أكل). التطعيمات المبدئية متسجلة «مراجعة» ومش بتظهر
-          للأمهات — طابقيها مع كارت التطعيم الرسمي لوزارة الصحة وعدّلي الأيام والأسماء، وبعدين غيري الحالة لـ «منشور».
+          الجدول ده بيظهر لكل أم حسب عمر طفلها بالأيام (تطعيمات، مهارات، أكل). كل أم بتختار بلدها من التطبيق وبيظهرلها
+          جدول تطعيمات بلدها. أي بلد تطعيماتها «مراجعة» مش بتظهر — طابقيها مع الكارت الرسمي وبعدين انشريها.
         </p>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+          <label style={{ ...fieldStyle, minWidth: 220 }}>
+            اعرضي تطعيمات
+            <select value={viewCountry} onChange={(e) => setViewCountry(e.target.value)}>
+              {vaccineCountries.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ ...fieldStyle, minWidth: 220 }}>
+            البلد الافتراضي (للأم اللي لسه ما اختارتش)
+            <select value={country} onChange={(e) => changeCountry(e.target.value)}>
+              {vaccineCountries.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button type="button" className="mock-btn mock-btn--primary" onClick={() => setEditing({ ...emptyTimelineItem })}>
+          {countryReviewCount > 0 && (
+            <button type="button" className="mock-btn mock-btn--outline" onClick={publishCountry}>
+              <BookCheck size={16} /> انشري تطعيمات {countryLabel(viewCountry)} ({countryReviewCount})
+            </button>
+          )}
+          <button
+            type="button"
+            className="mock-btn mock-btn--primary"
+            onClick={() => setEditing({ ...emptyTimelineItem, country: viewCountry })}
+          >
             <Plus size={16} /> عنصر جديد
           </button>
           {reviewCount > 0 && <StatusBadge tone="warning">{reviewCount} مستني مراجعة</StatusBadge>}
@@ -496,6 +640,16 @@ function TimelineTab() {
                 ))}
               </select>
             </label>
+            {editing.kind === 'vaccine' && (
+              <label style={fieldStyle}>
+                البلد
+                <select value={editing.country || 'EG'} onChange={(e) => setEditing({ ...editing, country: e.target.value })}>
+                  {vaccineCountries.map((c) => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label style={fieldStyle}>
               العمر بالأيام (الولادة = 0، 6 أسابيع = 42، 9 شهور ≈ 274)
               <input
@@ -568,15 +722,18 @@ function TimelineTab() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {visibleRows.length === 0 ? (
               <tr>
                 <td colSpan={5} className="text-caption">مفيش عناصر لسه — شغّلي ملف الـ SQL بتاع جدول إمتى.</td>
               </tr>
             ) : (
-              rows.map((r) => (
+              visibleRows.map((r) => (
                 <tr key={r.id}>
                   <td className="text-caption">{ageDaysLabel(r.age_days)}</td>
-                  <td>{timelineKinds.find((k) => k.id === r.kind)?.label ?? r.kind}</td>
+                  <td>
+                    {timelineKinds.find((k) => k.id === r.kind)?.label ?? r.kind}
+                    {r.kind === 'vaccine' && <div className="text-caption">{countryLabel(r.country)}</div>}
+                  </td>
                   <td>
                     <strong>{r.title}</strong>
                     <div className="text-caption" style={{ marginTop: 4 }}>{r.body}</div>

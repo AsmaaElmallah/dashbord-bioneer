@@ -77,6 +77,32 @@ export async function createAndSendCampaign({ title, body }) {
   }
 }
 
+/** Push to one user's devices only (not listed in the app's notifications). */
+export async function sendPersonalPush({ userId, title, body, kind }) {
+  if (!isSupabaseEnabled || !supabase || !userId) return { error: null, data: null };
+  try {
+    const { data, error } = await supabase.functions.invoke('send-campaign', {
+      body: { user_id: userId, title, body, kind },
+    });
+    return { error, data };
+  } catch (e) {
+    return { error: e, data: null };
+  }
+}
+
+/** Push to the mothers who joined a club group. */
+export async function sendGroupPush({ groupId, title, body }) {
+  if (!isSupabaseEnabled || !supabase || !groupId) return { error: null, data: null };
+  try {
+    const { data, error } = await supabase.functions.invoke('send-campaign', {
+      body: { group_id: groupId, title, body },
+    });
+    return { error, data };
+  } catch (e) {
+    return { error: e, data: null };
+  }
+}
+
 export async function countDeviceTokens() {
   if (!isSupabaseEnabled || !supabase) {
     return { count: 0, error: null };

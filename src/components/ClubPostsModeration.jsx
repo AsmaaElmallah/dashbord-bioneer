@@ -34,8 +34,9 @@ const filters = [
 const isPending = (p) => p.publish_status === 'review' || p.publish_status === 'draft';
 
 /** جدول منشورات نادي الأمهات: مراجعة أسئلة الأمهات، العمر، والردود. */
-export function ClubPostsModeration({ rows, onChanged, notify }) {
+export function ClubPostsModeration({ rows, groups = [], onChanged, notify }) {
   const pendingCount = rows.filter(isPending).length;
+  const groupTitles = useMemo(() => Object.fromEntries(groups.map((g) => [g.id, g.title])), [groups]);
   const [filter, setFilter] = useState(pendingCount > 0 ? 'review' : 'all');
   const [busyId, setBusyId] = useState(null);
   const [openId, setOpenId] = useState(null);
@@ -138,7 +139,7 @@ export function ClubPostsModeration({ rows, onChanged, notify }) {
             <tr>
               <th>السؤال</th>
               <th>الكاتبة</th>
-              <th>العمر</th>
+              <th>المكان</th>
               <th>تفاعل</th>
               <th>الحالة</th>
               <th></th>
@@ -191,6 +192,9 @@ export function ClubPostsModeration({ rows, onChanged, notify }) {
                         )}
                       </td>
                       <td>
+                        {p.group_id ? (
+                          <StatusBadge tone="info">جروب: {groupTitles[p.group_id] ?? '—'}</StatusBadge>
+                        ) : (
                         <select
                           value={p.category_id && clubAgeLabel(p.category_id) ? p.category_id : ''}
                           onChange={(e) => run(p.id, () => setClubPostCategory(p.id, e.target.value))}
@@ -202,6 +206,7 @@ export function ClubPostsModeration({ rows, onChanged, notify }) {
                             </option>
                           ))}
                         </select>
+                        )}
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         ❤️ {p.likes_count ?? 0} · 💬 {p.comments_count ?? 0}

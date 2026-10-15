@@ -1,4 +1,4 @@
-import { BookOpen, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
+import { BookOpen, Gift, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminCard } from './AdminCard';
 import { AdminTableContainer } from './AdminTableContainer';
@@ -14,8 +14,11 @@ import { libraryPdfPublishOptions, publishLabel } from '../services/supabase/lib
 import {
   deletePaidBook,
   emptyPaidBookDraft,
+  grantBookByEmail,
   listPaidBookPurchases,
   listPaidBooks,
+  purchaseSourceLabel,
+  revokeBookPurchase,
   savePaidBook,
   translateSectionsError,
   validatePaidBook,
@@ -260,15 +263,19 @@ export function LibraryPaidBooksManager() {
         )}
       </AdminCard>
 
-      <PaidBookPurchasesCard />
+      <PaidBookPurchasesCard books={items} />
     </div>
   );
 }
 
-function PaidBookPurchasesCard() {
-  const { showError } = useSnackbar();
+function PaidBookPurchasesCard({ books }) {
+  const { showError, showSuccess } = useSnackbar();
+  const { needsLogin } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [grantBookId, setGrantBookId] = useState('');
+  const [grantEmail, setGrantEmail] = useState('');
+  const [granting, setGranting] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -282,17 +289,85 @@ function PaidBookPurchasesCard() {
     reload();
   }, [reload]);
 
+  const onGrant = async () => {
+    const email = grantEmail.trim();
+    if (!grantBookId) {
+      showError('اختاري الكتاب.');
+      return;
+    }
+    if (!email.includes('@')) {
+      showError('اكتبي إيميل الأم صح.');
+      return;
+    }
+    if (needsLogin) {
+      showError('سجّلي الدخول أولاً.');
+      return;
+    }
+    setGranting(true);
+    const { error } = await grantBookByEmail(grantBookId, email);
+    setGranting(false);
+    if (error) {
+      showError(translateSectionsError(error.message) ?? 'تعذّر المنح');
+      return;
+    }
+    showSuccess('تم منح الكتاب — هيظهر عندها «تم الشراء» في التطبيق');
+    setGrantEmail('');
+    await reload();
+  };
+
+  const onRevoke = async (item) => {
+    const extra = item.source === 'paypal' ? '\nدي دفعت بـ PayPal — اسحبيه بس لو رجّعتيلها فلوسها.' : '';
+    if (!window.confirm(`سحب «${item.bookTitle || item.bookId}» من ${item.email || 'الأم'}؟${extra}`)) return;
+    const { error } = await revokeBookPurchase(item.bookId, item.userId);
+    if (error) {
+      showError(translateSectionsError(error.message) ?? 'تعذّر السحب');
+      return;
+    }
+    showSuccess('تم السحب');
+    await reload();
+  };
+
   return (
     <AdminCard>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <SectionHeader title="مشتريات PayPal" />
+        <SectionHeader title="مشتريات الكتب" />
         <button type="button" className="mock-btn mock-btn--outline" onClick={reload}>
           <RefreshCw size={14} /> تحديث
         </button>
       </div>
       <p className="text-caption" style={{ margin: '4px 0 12px' }}>
-        الأمهات اللي دفعوا ثمن كتاب بـ PayPal. طلبات الواتساب مش بتظهر هنا — بتيجي على الرقم فوق.
+        الأمهات اللي دفعوا بـ PayPal أو اتمنحلهم كتاب من الإدارة. طلبات الواتساب مش بتظهر هنا — بتيجي على الرقم فوق.
       </p>
+      <div className="grid-2" style={{ gap: 12, alignItems: 'end', marginBottom: 12 }}>
+        <label className="cms-field">
+          الكتاب
+          <select value={grantBookId} onChange={(e) => setGrantBookId(e.target.value)}>
+            <option value="">اختاري كتاب…</option>
+            {books.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="cms-field">
+          إيميل الأم
+          <input
+            type="email"
+            dir="ltr"
+            placeholder="mom@example.com"
+            value={grantEmail}
+            onChange={(e) => setGrantEmail(e.target.value)}
+          />
+        </label>
+      </div>
+      <p className="text-caption" style={{ margin: '0 0 8px' }}>
+        للهدايا أو التعويض، أو لو دفعت بره التطبيق (مثلاً واتساب) وعايزة تسجّليها.
+      </p>
+      <button type="button" className="mock-btn mock-btn--primary" disabled={granting} onClick={onGrant}>
+        <Gift size={14} /> {granting ? 'جاري المنح…' : 'منح الكتاب'}
+      </button>
+      <div style={{ height: 16 }} />
       {loading ? (
         <MockLoading label="جاري تحميل المشتريات…" />
       ) : items.length === 0 ? (
@@ -305,7 +380,9 @@ function PaidBookPurchasesCard() {
                 <th>الإيميل</th>
                 <th>الاسم</th>
                 <th>الكتاب</th>
+                <th>المصدر</th>
                 <th>التاريخ</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -314,7 +391,23 @@ function PaidBookPurchasesCard() {
                   <td dir="ltr">{item.email || '—'}</td>
                   <td>{item.name || '—'}</td>
                   <td>{item.bookTitle || item.bookId}</td>
+                  <td>
+                    <StatusBadge tone={item.source === 'admin' ? 'warning' : 'success'}>
+                      {purchaseSourceLabel(item.source)}
+                    </StatusBadge>
+                  </td>
                   <td>{item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '—'}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="mock-btn mock-btn--outline"
+                      style={{ padding: '4px 8px' }}
+                      aria-label="سحب"
+                      onClick={() => onRevoke(item)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

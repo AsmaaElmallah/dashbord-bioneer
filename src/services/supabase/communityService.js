@@ -149,18 +149,59 @@ export async function fetchClubPosts() {
   return { data: data ?? [], error: null, offline: false };
 }
 
-export async function upsertClubPost({ title, body, categoryId }) {
+export async function upsertClubPost({ title, body, categoryId, groupId, pinned = false }) {
   if (!isSupabaseEnabled) return { error: new Error('Supabase غير مفعّل') };
   const { data: sessionData } = await supabase.auth.getUser();
   const user = sessionData?.user;
   const { error } = await supabase.from(CLUB_POSTS).insert({
     title: title.trim(),
     body: body.trim(),
-    category_id: categoryId || null,
+    category_id: groupId ? null : categoryId || null,
+    group_id: groupId || null,
+    is_pinned: pinned,
     publish_status: 'published',
     author_id: user?.id ?? null,
     author_display_name: 'فريق بيانور',
   });
+  return { error };
+}
+
+// ---------------------------------------------------------------------------
+// جروبات النادي
+// ---------------------------------------------------------------------------
+const CLUB_GROUPS = 'mothers_club_groups';
+
+export async function fetchClubGroups() {
+  if (!isSupabaseEnabled) return { data: [], error: null };
+  const { data, error } = await supabase
+    .from(CLUB_GROUPS)
+    .select('*')
+    .order('sort_order')
+    .order('created_at');
+  return { data: data ?? [], error };
+}
+
+export async function saveClubGroup(group) {
+  if (!isSupabaseEnabled) return { error: new Error('Supabase غير مفعّل') };
+  const row = {
+    title: group.title.trim(),
+    description: (group.description ?? '').trim(),
+    icon_key: group.iconKey || 'people',
+    course_id: group.courseId || null,
+    info_note: (group.infoNote ?? '').trim(),
+    sort_order: Number(group.sortOrder) || 0,
+    publish_status: group.published ? 'published' : 'draft',
+  };
+  const query = group.id
+    ? supabase.from(CLUB_GROUPS).update(row).eq('id', group.id)
+    : supabase.from(CLUB_GROUPS).insert(row);
+  const { error } = await query;
+  return { error };
+}
+
+export async function deleteClubGroup(id) {
+  if (!isSupabaseEnabled) return { error: new Error('Supabase غير مفعّل') };
+  const { error } = await supabase.from(CLUB_GROUPS).delete().eq('id', id);
   return { error };
 }
 

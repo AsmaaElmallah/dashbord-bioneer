@@ -20,7 +20,10 @@ export async function fetchDashboardOverview() {
     feedback,
     consultations,
   ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
+    supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .or('role.is.null,role.not.in.(admin,editor)'),
     supabase.from('children').select('*', { count: 'exact', head: true }),
     supabase.from('courses').select('*', { count: 'exact', head: true }),
     supabase.from('cms_articles').select('*', { count: 'exact', head: true }),

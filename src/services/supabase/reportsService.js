@@ -1,4 +1,5 @@
 import { isSupabaseEnabled, supabase } from '../../lib/supabaseClient';
+import { formatUsd, planDurationLabel } from './subscriptionsService';
 
 export async function fetchSubscriptionReport() {
   if (!isSupabaseEnabled || !supabase) {
@@ -9,7 +10,7 @@ export async function fetchSubscriptionReport() {
     await Promise.all([
       supabase
         .from('subscription_plans')
-        .select('id, name, price_display, active')
+        .select('id, name, price_usd, duration_days, active')
         .order('sort_order'),
       supabase.from('user_subscriptions').select('plan_id, status, expires_at'),
     ]);
@@ -34,7 +35,9 @@ export async function fetchSubscriptionReport() {
       planId: p.id,
       active,
       churn: cancelled,
-      priceDisplay: p.price_display ?? '—',
+      priceDisplay: formatUsd(p.price_usd)
+        ? `${formatUsd(p.price_usd)} / ${planDurationLabel(p.duration_days ?? 30)}`
+        : '—',
     };
   });
 

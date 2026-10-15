@@ -134,7 +134,13 @@ function rowToCourse(row) {
   };
 }
 
+function usdPrice(value) {
+  const n = Number(String(value ?? '').trim());
+  return String(value ?? '').trim() === '' || !(n > 0) ? null : n;
+}
+
 function courseToRow(course) {
+  const usd = course.accessType === 'paid' ? usdPrice(course.priceUsd) : null;
   return {
     id: course.id || `course_${Date.now()}`,
     title: course.title.trim(),
@@ -146,11 +152,12 @@ function courseToRow(course) {
     category_label: (course.categoryLabel ?? '').trim(),
     cover_url: course.coverUrl?.trim() || null,
     access_type: course.accessType,
-    price_label: course.priceLabel.trim(),
+    // The app shows and charges price_usd; price_label is kept in sync for older readers.
+    price_label: usd == null ? '' : Number.isInteger(usd) ? `$${usd}` : `$${usd.toFixed(2)}`,
     old_price_label: (course.oldPriceLabel ?? '').trim(),
     promo_note: (course.promoNote ?? '').trim(),
     guarantee_note: (course.guaranteeNote ?? '').trim(),
-    price_usd: String(course.priceUsd ?? '').trim() === '' ? null : Number(course.priceUsd),
+    price_usd: usd,
     store_product_id_android: course.storeProductIdAndroid?.trim() || null,
     store_product_id_ios: course.storeProductIdIos?.trim() || null,
     sort_order: Number(course.sortOrder) || 0,
@@ -161,6 +168,9 @@ function courseToRow(course) {
 export function validateCourse(course) {
   if (!course.title.trim()) return 'اسم الدورة مطلوب.';
   if (course.publishStatus === 'published' && !course.coverUrl) return 'ارفعي صورة للدورة قبل النشر.';
+  if (course.accessType === 'paid' && course.publishStatus === 'published' && usdPrice(course.priceUsd) == null) {
+    return 'الدورة المدفوعة لازم يبقى ليها سعر بالدولار قبل النشر.';
+  }
   return null;
 }
 
@@ -413,7 +423,7 @@ export async function deleteResource(resource) {
 export const LIVE_RECORDINGS_UNIT = 'تسجيلات اللايف';
 
 /**
- * target: { mode: 'existing', courseId, isPreview } أو { mode: 'new', title, accessType, priceLabel, priceUsd }
+ * target: { mode: 'existing', courseId, isPreview } أو { mode: 'new', title, accessType, priceUsd }
  * video: { youtubeVideoId } أو { file } (ملف حتى 50 ميجا)
  */
 export async function publishLiveRecording({ session, lessonTitle, durationMinutes, video, target }) {
@@ -428,7 +438,6 @@ export async function publishLiveRecording({ session, lessonTitle, durationMinut
       instructorName: session.instructorName ?? '',
       coverUrl: session.coverUrl ?? '',
       accessType: target.accessType,
-      priceLabel: target.priceLabel ?? '',
       priceUsd: target.priceUsd ?? '',
       publishStatus: session.coverUrl ? 'published' : 'draft',
     };

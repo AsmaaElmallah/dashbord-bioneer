@@ -5,7 +5,7 @@ import { SectionHeader } from './SectionHeader';
 import { useSnackbar } from '../context/SnackbarContext';
 import { grantSubscriptionByEmail } from '../services/supabase/subscriptionsService';
 
-/** فتح اشتراك لأم دفعت بالتحويل اليدوي. */
+/** منح اشتراك لأم كتعويض أو هدية (الدفع نفسه ببيبال بس). */
 export function GrantSubscriptionCard({ plans, onGranted }) {
   const { showError, showSuccess } = useSnackbar();
   const [email, setEmail] = useState('');
@@ -40,10 +40,10 @@ export function GrantSubscriptionCard({ plans, onGranted }) {
 
   return (
     <AdminCard>
-      <SectionHeader title="فتح اشتراك بالإيميل (تحويل يدوي)" />
+      <SectionHeader title="منح اشتراك بالإيميل (تعويض أو هدية)" />
       <p className="text-caption" style={{ margin: '4px 0 12px' }}>
-        بعد ما الأم تحوّل وتبعت الإيصال، اكتبي إيميلها اللي مسجّلة بيه في التطبيق. لو عندها اشتراك شغال، المدة الجديدة
-        بتتضاف عليه.
+        للدعم بس، مش طريقة دفع. اكتبي إيميل الأم اللي مسجّلة بيه في التطبيق. المدة بتتضاف على اشتراكها، وبيتفتحلها نفس
+        عدد الأيام من الدروس.
       </p>
       <div className="filters-row">
         <input
